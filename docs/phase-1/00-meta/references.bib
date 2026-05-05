@@ -1,0 +1,199 @@
+% SRIAAWP Portal — Literature review starter set
+% Authoring rules:
+%   1. Citation key = firstauthor + year + slug, all lowercase (e.g. lewis2020retrieval).
+%   2. Prefer @article / @inproceedings / @book over @misc when the venue is known.
+%   3. Grey-lit (PDPA, Malaysian competitor systems, vendor docs) goes under @misc with a url field.
+%   4. Do not invent DOIs/URLs you cannot verify — leave the field out and add a TODO comment instead.
+%   5. Pinned target: >= 20 references by FYP1 close (currently 16; gap closed during Chapter 2 drafting).
+
+% --- Software engineering process / SDLC -----------------------------------
+
+@inproceedings{royce1970managing,
+  author       = {Royce, Winston W.},
+  title        = {Managing the Development of Large Software Systems},
+  booktitle    = {Proceedings of IEEE WESCON},
+  year         = {1970},
+  pages        = {1--9},
+  note         = {Canonical waterfall reference; cited for the SDLC rationale chapter.}
+}
+
+@book{sommerville2016software,
+  author       = {Sommerville, Ian},
+  title        = {Software Engineering},
+  edition      = {10},
+  publisher    = {Pearson},
+  year         = {2016},
+  isbn         = {978-0133943030}
+}
+
+@book{pressman2020software,
+  author       = {Pressman, Roger S. and Maxim, Bruce R.},
+  title        = {Software Engineering: A Practitioner's Approach},
+  edition      = {9},
+  publisher    = {McGraw-Hill},
+  year         = {2020},
+  isbn         = {978-1259872976}
+}
+
+@misc{beck2001agile,
+  author       = {Beck, Kent and Beedle, Mike and van Bennekum, Arie and Cockburn, Alistair and Cunningham, Ward and Fowler, Martin and Grenning, James and Highsmith, Jim and Hunt, Andrew and Jeffries, Ron and Kern, Jon and Marick, Brian and Martin, Robert C. and Mellor, Steve and Schwaber, Ken and Sutherland, Jeff and Thomas, Dave},
+  title        = {Manifesto for Agile Software Development},
+  year         = {2001},
+  url          = {https://agilemanifesto.org/},
+  note         = {Cited for the FYP2 agile half of the hybrid SDLC.}
+}
+
+% --- Retrieval-Augmented Generation ----------------------------------------
+
+@inproceedings{lewis2020retrieval,
+  author       = {Lewis, Patrick and Perez, Ethan and Piktus, Aleksandra and Petroni, Fabio and Karpukhin, Vladimir and Goyal, Naman and K{\"u}ttler, Heinrich and Lewis, Mike and Yih, Wen-tau and Rockt{\"a}schel, Tim and Riedel, Sebastian and Kiela, Douwe},
+  title        = {Retrieval-Augmented Generation for Knowledge-Intensive {NLP} Tasks},
+  booktitle    = {Advances in Neural Information Processing Systems (NeurIPS)},
+  volume       = {33},
+  pages        = {9459--9474},
+  year         = {2020},
+  note         = {Canonical RAG paper; cited for the chatbot pipeline design.}
+}
+
+@inproceedings{karpukhin2020dense,
+  author       = {Karpukhin, Vladimir and O\u{g}uz, Barlas and Min, Sewon and Lewis, Patrick and Wu, Ledell and Edunov, Sergey and Chen, Danqi and Yih, Wen-tau},
+  title        = {Dense Passage Retrieval for Open-Domain Question Answering},
+  booktitle    = {Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)},
+  pages        = {6769--6781},
+  year         = {2020},
+  note         = {Cited for the embedding-based retrieval rationale.}
+}
+
+@article{ji2023hallucination,
+  author       = {Ji, Ziwei and Lee, Nayeon and Frieske, Rita and Yu, Tiezheng and Su, Dan and Xu, Yan and Ishii, Etsuko and Bang, Ye Jin and Madotto, Andrea and Fung, Pascale},
+  title        = {Survey of Hallucination in Natural Language Generation},
+  journal      = {ACM Computing Surveys},
+  volume       = {55},
+  number       = {12},
+  pages        = {1--38},
+  year         = {2023},
+  note         = {Cited for the τ\_refuse threshold + RAGAS faithfulness target rationale.}
+}
+
+% --- RBAC / access control -------------------------------------------------
+
+@article{sandhu1996role,
+  author       = {Sandhu, Ravi S. and Coyne, Edward J. and Feinstein, Hal L. and Youman, Charles E.},
+  title        = {Role-Based Access Control Models},
+  journal      = {IEEE Computer},
+  volume       = {29},
+  number       = {2},
+  pages        = {38--47},
+  year         = {1996},
+  note         = {Canonical RBAC paper; cited for the RBAC matrix design.}
+}
+
+@book{ferraiolo2007rbac,
+  author       = {Ferraiolo, David F. and Kuhn, D. Richard and Chandramouli, Ramaswamy},
+  title        = {Role-Based Access Control},
+  edition      = {2},
+  publisher    = {Artech House},
+  year         = {2007},
+  isbn         = {978-1596931138}
+}
+
+% --- Usability evaluation methodology --------------------------------------
+
+@inproceedings{laugwitz2008construction,
+  author       = {Laugwitz, Bettina and Held, Theo and Schrepp, Martin},
+  title        = {Construction and Evaluation of a User Experience Questionnaire},
+  booktitle    = {{HCI} and Usability for Education and Work ({USAB} 2008)},
+  series       = {Lecture Notes in Computer Science},
+  volume       = {5298},
+  pages        = {63--76},
+  publisher    = {Springer},
+  year         = {2008},
+  note         = {26-item UEQ origin; benchmark target = "Above Average".}
+}
+
+@incollection{brooke1996sus,
+  author       = {Brooke, John},
+  title        = {{SUS}: A Quick and Dirty Usability Scale},
+  booktitle    = {Usability Evaluation in Industry},
+  editor       = {Jordan, Patrick W. and Thomas, Bruce and Weerdmeester, Bernard A. and McClelland, I. L.},
+  publisher    = {Taylor and Francis},
+  pages        = {189--194},
+  year         = {1996},
+  note         = {10-item SUS origin; target $\geq$ 68.}
+}
+
+@inproceedings{nielsen1994heuristic,
+  author       = {Nielsen, Jakob},
+  title        = {Heuristic Evaluation},
+  booktitle    = {Usability Inspection Methods},
+  editor       = {Nielsen, Jakob and Mack, Robert L.},
+  publisher    = {John Wiley and Sons},
+  pages        = {25--62},
+  year         = {1994},
+  note         = {The 10 heuristics used in the heuristic-eval-checklist.}
+}
+
+@misc{iso9241_2018,
+  author       = {{International Organization for Standardization}},
+  title        = {{ISO} 9241-11:2018 — Ergonomics of human-system interaction — Part 11: Usability: Definitions and concepts},
+  year         = {2018},
+  organization = {ISO},
+  url          = {https://www.iso.org/standard/63500.html}
+}
+
+% --- Compliance / data protection ------------------------------------------
+
+@misc{pdpa2010,
+  author       = {{Government of Malaysia}},
+  title        = {Personal Data Protection Act 2010 (Act 709)},
+  year         = {2010},
+  howpublished = {Laws of Malaysia},
+  url          = {https://www.pdp.gov.my/ppdpv1/en/akta/pdp-act-2010-en/},
+  note         = {Cited as the controlling statute for under-13 student data; see ADR-008.}
+}
+
+% --- Conflict-aware / educational timetabling ------------------------------
+
+@article{babaei2015survey,
+  author       = {Babaei, Hamed and Karimpour, Jaber and Hadidi, Amin},
+  title        = {A Survey of Approaches for University Course Timetabling Problem},
+  journal      = {Computers and Industrial Engineering},
+  volume       = {86},
+  pages        = {43--59},
+  year         = {2015},
+  note         = {Cited for the conflict-checker design's hard/soft constraint vocabulary.}
+}
+
+% --- School management / education systems ---------------------------------
+
+@misc{chui2012social,
+  author       = {Chui, Tin Bing and Wan Mohamad Asyraf, Wan Afthanorhan},
+  title        = {Social Media in Schools: A Treasure Trove or Hot Potato?},
+  year         = {2012},
+  howpublished = {Working paper},
+  note         = {Master plan §11.4 seed reference for school-system adoption literature; replace with peer-reviewed equivalent during Ch 2 drafting.}
+}
+
+% --- Grey-literature / Malaysian school portals ----------------------------
+% Listed under @misc with url because these are commercial / governmental
+% sources without a peer-reviewed venue. Master plan §12 explicitly allows
+% URL-only citations for IMusleh / E-SMART grey-lit.
+
+@misc{imusleh,
+  title        = {{iMusleh}: Sistem Pengurusan Sekolah Islam},
+  howpublished = {Vendor website (commercial Malaysian Islamic school management system)},
+  year         = {2024},
+  note         = {Comparator system; URL captured during Ch 2 drafting.}
+}
+
+@misc{esmart,
+  title        = {{E-SMART}: Sistem Maklumat Sekolah Berpusat},
+  howpublished = {Vendor website (commercial Malaysian school information system)},
+  year         = {2024},
+  note         = {Comparator system; URL captured during Ch 2 drafting.}
+}
+
+% --- Open follow-ups (track in revision-history.md) ------------------------
+% TODO Ch 2: replace chui2012social with a peer-reviewed school-information-systems survey.
+% TODO Ch 2: capture verified URLs for imusleh and esmart at first stakeholder access.
+% TODO Ch 2: add 4–6 more references to clear the >= 20 target (RAG-in-education survey, PDP Amendment 2024, additional usability papers).
