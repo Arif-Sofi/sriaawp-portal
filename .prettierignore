@@ -1,0 +1,13 @@
+node_modules
+.next
+out
+build
+coverage
+test-results
+playwright-report
+blob-report
+playwright/.cache
+package-lock.json
+docs/phase-1/source
+docs/phase-1/PP.md
+docs/phase-1/PS.md
