@@ -8,6 +8,11 @@ playwright-report
 blob-report
 playwright/.cache
 package-lock.json
-docs/phase-1/source
-docs/phase-1/PP.md
-docs/phase-1/PS.md
+
+# Phase-1 docs are authored in their own style and reviewed in PR #3.
+docs/
+
+# Repository root markdown is owned by other PRs / Next.js conventions.
+AGENTS.md
+CLAUDE.md
+README.md
