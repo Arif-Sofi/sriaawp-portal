@@ -13,7 +13,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "db:generate": "drizzle-kit generate",
+    "db:check": "drizzle-kit check",
+    "db:seed": "tsx src/db/seed/index.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.67",
@@ -47,6 +50,7 @@
     "jsdom": "^29.1.1",
     "prettier": "^3.8.3",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^4.1.5"
   }

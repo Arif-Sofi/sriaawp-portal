@@ -1,0 +1,72 @@
+export const PERMISSIONS = [
+  { code: "user:read:self", label: "Read own user record" },
+  { code: "user:read:dept", label: "Read users within own department" },
+  { code: "user:read:any", label: "Read any user record" },
+  { code: "user:invite", label: "Invite a new user" },
+  { code: "user:verify_parent", label: "Approve or reject parent verification requests" },
+  { code: "user:link_family", label: "Create or edit parent-student family links" },
+  { code: "user:manage_roles", label: "Assign or revoke user roles" },
+  { code: "role:manage", label: "Create or edit role definitions" },
+  { code: "permission:manage", label: "Create or edit permission definitions" },
+  { code: "department:manage", label: "Create or edit departments" },
+  { code: "event:create", label: "Create events" },
+  { code: "event:edit", label: "Edit events" },
+  { code: "event:override_conflict", label: "Override soft conflicts when creating events" },
+  { code: "event:cancel", label: "Cancel events" },
+  { code: "event:publish", label: "Publish events to the public Takwim" },
+  { code: "news:author", label: "Author and publish news posts" },
+  { code: "news:read", label: "Read news posts visible to caller" },
+  { code: "memo:author", label: "Author and publish internal memos" },
+  { code: "memo:read", label: "Read memos visible to caller" },
+  { code: "document:upload", label: "Upload documents into the RAG corpus" },
+  { code: "document:edit", label: "Edit document metadata or replace versions" },
+  { code: "document:delete", label: "Delete documents" },
+  { code: "document:reindex", label: "Trigger re-embedding of a document" },
+  { code: "rag:query", label: "Use the RAG chat interface" },
+  { code: "cocurricular:approve_achievement", label: "Approve student achievement applications" },
+  { code: "cocurricular:manage_group", label: "Manage co-curricular groups and enrolments" },
+  { code: "cocurricular:submit_achievement", label: "Submit own achievement application" },
+] as const;
+
+export const ROLES = [
+  { code: "admin", label: "Administrator" },
+  { code: "teacher", label: "Teacher / staff" },
+  { code: "parent", label: "Parent / guardian" },
+  { code: "student", label: "Student" },
+] as const;
+
+export const ROLE_PERMISSIONS: Record<string, string[]> = {
+  admin: PERMISSIONS.map((p) => p.code),
+  teacher: [
+    "user:read:self",
+    "user:read:dept",
+    "event:create",
+    "event:edit",
+    "event:cancel",
+    "news:author",
+    "news:read",
+    "memo:author",
+    "memo:read",
+    "document:upload",
+    "document:edit",
+    "document:reindex",
+    "rag:query",
+    "cocurricular:approve_achievement",
+    "cocurricular:manage_group",
+  ],
+  parent: ["user:read:self", "news:read", "memo:read", "rag:query"],
+  student: [
+    "user:read:self",
+    "news:read",
+    "memo:read",
+    "cocurricular:submit_achievement",
+  ],
+};
+
+export const DEPARTMENTS = [
+  { code: "curriculum", name: "Curriculum" },
+  { code: "student-affairs", name: "Student Affairs" },
+  { code: "cocurricular", name: "Co-curricular" },
+  { code: "tahfiz", name: "Tahfiz" },
+  { code: "administration", name: "Administration" },
+] as const;
