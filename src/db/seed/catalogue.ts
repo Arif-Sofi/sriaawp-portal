@@ -55,12 +55,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "cocurricular:manage_group",
   ],
   parent: ["user:read:self", "news:read", "memo:read", "rag:query"],
-  student: [
-    "user:read:self",
-    "news:read",
-    "memo:read",
-    "cocurricular:submit_achievement",
-  ],
+  student: ["user:read:self", "news:read", "memo:read", "cocurricular:submit_achievement"],
 };
 
 export const DEPARTMENTS = [

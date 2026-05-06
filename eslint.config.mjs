@@ -17,6 +17,12 @@ const eslintConfig = defineConfig([
     "coverage/**",
     "playwright-report/**",
     "test-results/**",
+    // Local agent worktrees (Claude Code): each worktree has its own checkout
+    // under .claude/worktrees/* and brings its own .next build cache. ESLint
+    // would otherwise traverse those and surface thousands of generated-code
+    // warnings unrelated to the active branch.
+    ".claude/**",
+    "supabase/migrations/**",
   ]),
 ]);
 

@@ -286,11 +286,7 @@ async function upsertStudents(tx: Tx): Promise<string[]> {
   return ids;
 }
 
-async function upsertFamilyLinks(
-  tx: Tx,
-  parentIds: string[],
-  studentIds: string[],
-): Promise<void> {
+async function upsertFamilyLinks(tx: Tx, parentIds: string[], studentIds: string[]): Promise<void> {
   let cursor = 0;
   for (const parentId of parentIds) {
     const childCount = faker.number.int({ min: 1, max: 2 });
@@ -311,11 +307,7 @@ async function upsertFamilyLinks(
   }
 }
 
-async function approveParents(
-  tx: Tx,
-  parentIds: string[],
-  reviewerUserId: string,
-): Promise<void> {
+async function approveParents(tx: Tx, parentIds: string[], reviewerUserId: string): Promise<void> {
   for (const parentId of parentIds) {
     await tx
       .insert(parentVerificationRequest)
