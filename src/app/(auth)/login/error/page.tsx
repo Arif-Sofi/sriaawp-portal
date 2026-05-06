@@ -24,9 +24,7 @@ export default async function AuthErrorPage({ searchParams }: AuthErrorPageProps
           </p>
         </div>
 
-        {error ? (
-          <p className="mt-4 font-mono text-xs text-slate-400">code: {error}</p>
-        ) : null}
+        {error ? <p className="mt-4 font-mono text-xs text-slate-400">code: {error}</p> : null}
 
         <Link
           href="/login"

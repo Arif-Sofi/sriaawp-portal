@@ -14,8 +14,8 @@ export default async function ParentDashboardPage() {
       <h1 className="text-2xl font-semibold text-slate-900">Papan Pemuka Ibu Bapa</h1>
       <p className="mt-1 text-sm text-slate-500">Parent dashboard</p>
       <p className="mt-6 text-sm text-slate-700">
-        Selamat datang, {user.name ?? user.email}. Pautan kepada anak-anak anda akan muncul di
-        sini selepas pendaftaran lengkap.
+        Selamat datang, {user.name ?? user.email}. Pautan kepada anak-anak anda akan muncul di sini
+        selepas pendaftaran lengkap.
       </p>
     </main>
   );

@@ -10,8 +10,8 @@ export function PendingApprovalNotice() {
             e-mel sebaik sahaja akaun diluluskan.
           </p>
           <p className="text-amber-800/80">
-            Your registration is being reviewed by the school administrator. You will be notified
-            by email once your account is approved.
+            Your registration is being reviewed by the school administrator. You will be notified by
+            email once your account is approved.
           </p>
         </div>
       </div>

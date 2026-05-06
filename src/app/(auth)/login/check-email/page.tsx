@@ -16,17 +16,19 @@ export default async function CheckEmailPage({ searchParams }: CheckEmailPagePro
             Pautan log masuk telah dihantar
             {email ? (
               <>
-                {" "}ke <span className="font-medium text-slate-900">{email}</span>
+                {" "}
+                ke <span className="font-medium text-slate-900">{email}</span>
               </>
             ) : null}
-            . Sila semak peti masuk anda dan klik pautan untuk teruskan. Pautan ini akan tamat
-            dalam masa 24 jam.
+            . Sila semak peti masuk anda dan klik pautan untuk teruskan. Pautan ini akan tamat dalam
+            masa 24 jam.
           </p>
           <p className="text-slate-500">
             A sign-in link has been sent
             {email ? (
               <>
-                {" "}to <span className="font-medium text-slate-700">{email}</span>
+                {" "}
+                to <span className="font-medium text-slate-700">{email}</span>
               </>
             ) : null}
             . Please check your inbox and click the link to continue. This link will expire in 24
