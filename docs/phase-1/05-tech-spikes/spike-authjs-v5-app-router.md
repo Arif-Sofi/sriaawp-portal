@@ -1,6 +1,6 @@
 # Spike — Auth.js v5 (`next-auth@5.0.0-beta.30`) on Next.js 16 App Router
 
-**Status.** Research complete (pre-implementation playbook). Implementation lands in PR #25; this file will be updated to `Status: Done` and have its "Hello-world reproduced" / "Pitfalls encountered" sections expanded after PR #25 merges.
+**Status.** Done. Implementation landed in PR #25 (`feat/auth-rbac`). The "Hello-world reproduced" and "Pitfalls encountered" sections at the bottom of this file capture the wired-up file paths and the deviations the implementation forced.
 
 **Author.** Muhammad Arif Hakimi.
 **Started / Completed (research).** 2026-05-06 / 2026-05-06.
@@ -495,7 +495,42 @@ Skip the e2e in CI for now (Playwright browsers + live DB requirement). Track in
 > 16. CI must pass `lint`, `typecheck`, `format:check`, `test`. Add `AUTH_SECRET=ci-dummy-secret` to the CI env.
 > 17. Do NOT enable `cacheComponents`. Do NOT add a `middleware.ts`. Do NOT enforce RBAC inside `proxy.ts`. Stay on Node runtime.
 
+## 13. Hello-world reproduced — file paths from PR #25
+
+| Concern | File |
+|---|---|
+| Auth.js singleton (NextAuth config) | `src/lib/auth.ts` |
+| Magic-link send + dev console fallback | `src/lib/auth/send-magic-link.ts` |
+| Drizzle client (postgres.js, `prepare: false`) | `src/lib/db/index.ts` |
+| Session-context loader (single join, `React.cache`) | `src/lib/rbac/session-context.ts` |
+| RBAC types (RoleCode / PermissionCode / UserStatus) | `src/lib/rbac/types.ts` |
+| Server-side helpers (getCurrentUser / requireUser / requirePermission / hasPermission) | `src/lib/rbac.ts` |
+| Session.user augmentation | `src/types/next-auth.d.ts` |
+| NextAuth route handler | `src/app/api/auth/[...nextauth]/route.ts` |
+| `proxy.ts` (auth gating, Node runtime) | `proxy.ts` |
+| Login page (Server Component + Server Action) | `src/app/(auth)/login/page.tsx` |
+| Login form (Client Component, `useFormStatus`) | `src/app/(auth)/login/login-form.tsx` |
+| "Magic link sent" page (bilingual) | `src/app/(auth)/login/check-email/page.tsx` |
+| Auth error page (bilingual) | `src/app/(auth)/login/error/page.tsx` |
+| Parent dashboard (PENDING_VERIFICATION short-circuit) | `src/app/(parent)/parent/dashboard/page.tsx` |
+| `<PendingApprovalNotice>` | `src/app/(parent)/parent/dashboard/pending-approval-notice.tsx` |
+| Staff dashboard (`requirePermission("staff:dashboard:read")`) | `src/app/(staff)/staff/dashboard/page.tsx` |
+| Admin dashboard (`requirePermission("admin:dashboard:read")`) | `src/app/(admin)/admin/dashboard/page.tsx` |
+| Vitest integration test (mocked Resend) | `tests/auth/magic-link.test.ts` |
+| Auth and session design doc | `docs/phase-1/03-design/auth-and-session-design.md` |
+| ADR | `docs/phase-1/00-meta/decision-log.md` § ADR-017 |
+
+## 14. Pitfalls encountered (deviations from the playbook)
+
+1. **Resend mock must be a class.** The test in §10 mocked `resend` with `vi.fn(() => ({ emails: { send } }))`, which fails when `send-magic-link.ts` calls `new Resend(apiKey)` — vitest reports "is not a constructor". Fix: mock with a real `class Resend { emails = { send: sendMock }; }`. Updated in `tests/auth/magic-link.test.ts`.
+2. **`process.env.NODE_ENV` is read-only at runtime under Vitest.** The naive `process.env.NODE_ENV = "production"` pattern from §10 throws `TypeError: 'process.env' only accepts a configurable, writable, and enumerable data descriptor`. Use `vi.stubEnv("NODE_ENV", "production")` and pair with `vi.unstubAllEnvs()` in `afterEach`.
+3. **`sendVerificationRequest` extracted to a helper.** Inlining the entire `Resend` provider's `sendVerificationRequest` callback in `src/lib/auth.ts` was hard to unit-test because Auth.js's `NextAuth({...})` does not expose the constructed providers in a reachable way. Refactor extracted the email-sending logic into `src/lib/auth/send-magic-link.ts`. The provider's `sendVerificationRequest` is now a one-liner that delegates to the helper.
+4. **`provider.apiKey` and `provider.from` can be `string | undefined`** in the v5 callback shape. The playbook code in §1.2 dereferenced them directly, which trips strict TS. Use `typeof provider.apiKey === "string" ? provider.apiKey : "dev-noop"`.
+5. **`PgDatabase` adapter signature.** The playbook showed the adapter taking a positional schema-keys object; the actual `DrizzleAdapter(db, schema?)` signature accepts an object with `usersTable / accountsTable / sessionsTable / verificationTokensTable`. The playbook example was already correct; flagging here so future readers don't second-guess.
+6. **Permission seeding.** The playbook required `staff:dashboard:read` and `admin:dashboard:read`. PR #24's catalogue did not have them; PR #25 adds both to `src/db/seed/catalogue.ts` and grants `staff:dashboard:read` to the `teacher` role (admin auto-receives all permissions via the `admin: PERMISSIONS.map((p) => p.code)` wildcard).
+7. **CI env block.** Production-mode `next build` requires `AUTH_SECRET`. PR #25 adds `env: { AUTH_SECRET, DATABASE_URL }` to the verify job in `.github/workflows/ci.yml`. Without this, the job fails at `npx drizzle-kit check` time because the schema imports `@/lib/db` indirectly via the seed test resolution path.
+
 ## References
 
 - Sources listed under "Docs read" above.
-- Local: `spike-nextjs-16.md`, `../03-design/ui-references.md`, `../00-meta/decision-log.md`.
+- Local: `spike-nextjs-16.md`, `../03-design/ui-references.md`, `../03-design/auth-and-session-design.md`, `../00-meta/decision-log.md`.

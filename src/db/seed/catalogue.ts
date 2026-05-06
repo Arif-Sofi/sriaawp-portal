@@ -26,6 +26,8 @@ export const PERMISSIONS = [
   { code: "cocurricular:approve_achievement", label: "Approve student achievement applications" },
   { code: "cocurricular:manage_group", label: "Manage co-curricular groups and enrolments" },
   { code: "cocurricular:submit_achievement", label: "Submit own achievement application" },
+  { code: "staff:dashboard:read", label: "Access the staff dashboard landing" },
+  { code: "admin:dashboard:read", label: "Access the admin dashboard landing" },
 ] as const;
 
 export const ROLES = [
@@ -53,6 +55,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "rag:query",
     "cocurricular:approve_achievement",
     "cocurricular:manage_group",
+    "staff:dashboard:read",
   ],
   parent: ["user:read:self", "news:read", "memo:read", "rag:query"],
   student: ["user:read:self", "news:read", "memo:read", "cocurricular:submit_achievement"],
