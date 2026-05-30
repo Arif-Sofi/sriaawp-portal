@@ -4,3 +4,4 @@ export * from "./departments";
 export * from "./profiles";
 export * from "./content";
 export * from "./audit";
+export * from "./events";
