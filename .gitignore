@@ -50,3 +50,10 @@ next-env.d.ts
 # Supabase local runtime
 /supabase/.branches
 /supabase/.temp
+
+# Claude Code: track committed skills, ignore local session data
+.claude/*
+!.claude/skills/
+
+# local agent helper scripts (throwaway db runners)
+/scripts/_*.mjs
