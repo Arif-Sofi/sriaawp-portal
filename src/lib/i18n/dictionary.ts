@@ -134,4 +134,17 @@ export const ui: Dictionary = {
     ms: "SRIAAWP menyediakan pendidikan Islam bertaraf antarabangsa untuk pelajar dari Tahun 1 hingga Tahun 6. Portal ini merupakan pusat maklumat rasmi untuk ibu bapa, guru, dan pelajar. Log masuk untuk mengakses papan pemuka anda.",
     en: "SRIAAWP provides international-standard Islamic education for pupils from Year 1 to Year 6. This portal is the official information hub for parents, teachers, and students. Log in to access your personalised dashboard.",
   },
+
+  "takwim.title": { ms: "Takwim Sekolah", en: "School Calendar" },
+  "takwim.upcoming": { ms: "Acara Akan Datang", en: "Upcoming Events" },
+  "takwim.empty": {
+    ms: "Tiada acara dijadualkan untuk bulan ini.",
+    en: "No events scheduled for this month.",
+  },
+  "takwim.emptyDesc": {
+    ms: "Jadual peperiksaan dan aktiviti sekolah akan dipaparkan di sini.",
+    en: "Examination schedules and school activities will appear here.",
+  },
+  "takwim.room": { ms: "Bilik", en: "Room" },
+  "takwim.exam": { ms: "Peperiksaan", en: "Exam" },
 };
