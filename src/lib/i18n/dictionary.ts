@@ -195,6 +195,26 @@ export const ui: Dictionary = {
   "event.occurrences": { ms: "kejadian", en: "occurrences" },
   "event.viewEvents": { ms: "Lihat Acara", en: "View Events" },
 
+  "parent.dashboardTitle": { ms: "Papan Pemuka Ibu Bapa", en: "Parent Dashboard" },
+  "parent.myChildren": { ms: "Anak-anak", en: "My Children" },
+  "parent.news": { ms: "Berita", en: "News" },
+  "parent.takwim": { ms: "Takwim", en: "Calendar" },
+  "parent.shortcutChildren": { ms: "Anak-anak", en: "My Children" },
+  "parent.shortcutTakwim": { ms: "Takwim", en: "Calendar" },
+  "parent.shortcutNews": { ms: "Berita", en: "News" },
+  "parent.childClass": { ms: "Kelas", en: "Class" },
+  "parent.childRelationship": { ms: "Hubungan", en: "Relationship" },
+  "parent.childStudentNo": { ms: "No. Pelajar", en: "Student No." },
+  "parent.childDob": { ms: "Tarikh Lahir", en: "Date of Birth" },
+  "parent.childYearOfEntry": { ms: "Tahun Kemasukan", en: "Year of Entry" },
+  "parent.childrenTitle": { ms: "Anak-anak Saya", en: "My Children" },
+  "parent.emptyChildren": { ms: "Tiada rekod anak-anak.", en: "No children linked." },
+  "parent.emptyChildrenDesc": {
+    ms: "Hubungi pejabat sekolah untuk menghubungkan akaun anda dengan rekod pelajar.",
+    en: "Contact the school office to link your account to a student record.",
+  },
+  "parent.viewAll": { ms: "Lihat semua", en: "View all" },
+
   "conflict.back": { ms: "Kembali", en: "Back" },
 
   "conflict.modalTitle": { ms: "Konflik Jadual Dikesan", en: "Schedule Conflicts Detected" },
