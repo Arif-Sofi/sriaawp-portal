@@ -6,7 +6,11 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import {
+  blackoutWindow,
   departments,
+  event,
+  eventAudience,
+  eventOccurrence,
   familyLink,
   GLOBAL_SCOPE_SENTINEL,
   memo,
@@ -16,6 +20,7 @@ import {
   permissions,
   rolePermission,
   roles,
+  room,
   staffProfile,
   studentProfile,
   userRole,
@@ -74,6 +79,9 @@ async function seed() {
     const teacherUserId = teacherUserIds[0]?.userId ?? adminUserId;
     await upsertNews(tx, adminUserId, teacherUserId);
     await upsertMemos(tx, adminUserId, teacherUserId);
+
+    const curriculumDeptId = departmentIds["CURRICULUM"] ?? Object.values(departmentIds)[0];
+    await upsertCalendar(tx, adminUserId, teacherUserId, curriculumDeptId);
   });
 
   await client.end();
@@ -419,14 +427,187 @@ async function upsertNews(tx: Tx, adminUserId: string, teacherUserId: string): P
 }
 
 async function upsertMemos(tx: Tx, adminUserId: string, teacherUserId: string): Promise<void> {
+  const existing = await tx.select({ id: memo.id }).from(memo).limit(1);
+  if (existing.length > 0) return;
+
   for (const item of SEED_MEMOS) {
-    await tx
-      .insert(memo)
+    await tx.insert(memo).values({
+      ...item,
+      authorUserId: item.visibility === "role_list" ? teacherUserId : adminUserId,
+    });
+  }
+}
+
+const SEED_ROOMS = [
+  { code: "DEWAN-UTAMA", name: "Dewan Utama", capacity: 500 },
+  { code: "BILIK-MESYUARAT", name: "Bilik Mesyuarat", capacity: 30 },
+  { code: "SURAU", name: "Surau", capacity: 150 },
+];
+
+const SEED_EVENTS = [
+  {
+    title: "Perhimpunan Pagi",
+    startAt: new Date("2026-05-25T07:30:00Z"),
+    endAt: new Date("2026-05-25T08:00:00Z"),
+    allDay: false,
+    priority: "normal" as const,
+    status: "published" as const,
+    roomCode: "DEWAN-UTAMA",
+    audience: [{ audienceType: "public" as const, audienceRef: null }],
+  },
+  {
+    title: "Hari Sukan Tahunan",
+    startAt: new Date("2026-05-30T07:00:00Z"),
+    endAt: new Date("2026-05-30T17:00:00Z"),
+    allDay: true,
+    priority: "normal" as const,
+    status: "published" as const,
+    roomCode: null,
+    audience: [{ audienceType: "public" as const, audienceRef: null }],
+  },
+  {
+    title: "Mesyuarat PIBG",
+    startAt: new Date("2026-06-03T14:30:00Z"),
+    endAt: new Date("2026-06-03T17:00:00Z"),
+    allDay: false,
+    priority: "normal" as const,
+    status: "published" as const,
+    roomCode: "DEWAN-UTAMA",
+    audience: [{ audienceType: "public" as const, audienceRef: null }],
+  },
+  {
+    title: "Taklimat Kurikulum Jabatan",
+    startAt: new Date("2026-06-05T09:00:00Z"),
+    endAt: new Date("2026-06-05T11:00:00Z"),
+    allDay: false,
+    priority: "normal" as const,
+    status: "published" as const,
+    roomCode: "BILIK-MESYUARAT",
+    audience: [{ audienceType: "department" as const, audienceRef: "CURRICULUM" }],
+  },
+  {
+    title: "Bengkel Guru",
+    startAt: new Date("2026-06-07T08:00:00Z"),
+    endAt: new Date("2026-06-07T13:00:00Z"),
+    allDay: false,
+    priority: "normal" as const,
+    status: "published" as const,
+    roomCode: "BILIK-MESYUARAT",
+    audience: [{ audienceType: "role" as const, audienceRef: "teacher" }],
+  },
+  {
+    title: "Peperiksaan Pertengahan Tahun — Tahun 6",
+    startAt: new Date("2026-06-10T08:00:00Z"),
+    endAt: new Date("2026-06-10T12:00:00Z"),
+    allDay: false,
+    priority: "exam" as const,
+    status: "published" as const,
+    roomCode: "DEWAN-UTAMA",
+    audience: [{ audienceType: "public" as const, audienceRef: null }],
+  },
+  {
+    title: "Majlis Penyampaian Hadiah",
+    startAt: new Date("2026-06-15T09:00:00Z"),
+    endAt: new Date("2026-06-15T12:00:00Z"),
+    allDay: false,
+    priority: "normal" as const,
+    status: "published" as const,
+    roomCode: "DEWAN-UTAMA",
+    audience: [{ audienceType: "public" as const, audienceRef: null }],
+  },
+  {
+    title: "Hari Terbuka Sekolah",
+    startAt: new Date("2026-06-20T08:00:00Z"),
+    endAt: new Date("2026-06-20T13:00:00Z"),
+    allDay: false,
+    priority: "normal" as const,
+    status: "published" as const,
+    roomCode: null,
+    audience: [{ audienceType: "public" as const, audienceRef: null }],
+  },
+];
+
+const SEED_BLACKOUTS = [
+  {
+    title: "Cuti Hari Raya Aidilfitri",
+    startAt: new Date("2026-05-26T00:00:00Z"),
+    endAt: new Date("2026-05-29T00:00:00Z"),
+    scope: "school" as const,
+    isHard: true,
+  },
+  {
+    title: "Minggu Peperiksaan Jun",
+    startAt: new Date("2026-06-08T00:00:00Z"),
+    endAt: new Date("2026-06-13T00:00:00Z"),
+    scope: "school" as const,
+    isHard: false,
+  },
+];
+
+async function upsertCalendar(
+  tx: Tx,
+  adminUserId: string,
+  _teacherUserId: string,
+  curriculumDeptId: string,
+): Promise<void> {
+  const [existingEvent] = await tx.select({ id: event.id }).from(event).limit(1);
+  if (existingEvent) return;
+
+  const roomIds: Record<string, string> = {};
+  for (const r of SEED_ROOMS) {
+    const [row] = await tx
+      .insert(room)
+      .values({ code: r.code, name: r.name, capacity: r.capacity })
+      .onConflictDoUpdate({ target: room.code, set: { name: r.name } })
+      .returning({ id: room.id });
+    roomIds[r.code] = row.id;
+  }
+
+  for (const e of SEED_EVENTS) {
+    const roomId = e.roomCode ? (roomIds[e.roomCode] ?? null) : null;
+    const deptId = e.audience.some((a) => a.audienceType === "department")
+      ? curriculumDeptId
+      : null;
+
+    const [eventRow] = await tx
+      .insert(event)
       .values({
-        ...item,
-        authorUserId: item.visibility === "role_list" ? teacherUserId : adminUserId,
+        title: e.title,
+        startAt: e.startAt,
+        endAt: e.endAt,
+        allDay: e.allDay,
+        roomId,
+        organizerUserId: adminUserId,
+        deptId,
+        priority: e.priority,
+        status: e.status,
       })
-      .onConflictDoNothing();
+      .returning({ id: event.id });
+
+    await tx.insert(eventOccurrence).values({
+      eventId: eventRow.id,
+      startAt: e.startAt,
+      endAt: e.endAt,
+    });
+
+    for (const aud of e.audience) {
+      const audienceRef = aud.audienceType === "department" ? curriculumDeptId : aud.audienceRef;
+      await tx.insert(eventAudience).values({
+        eventId: eventRow.id,
+        audienceType: aud.audienceType,
+        audienceRef,
+      });
+    }
+  }
+
+  for (const bw of SEED_BLACKOUTS) {
+    await tx.insert(blackoutWindow).values({
+      title: bw.title,
+      startAt: bw.startAt,
+      endAt: bw.endAt,
+      scope: bw.scope,
+      isHard: bw.isHard,
+    });
   }
 }
 
