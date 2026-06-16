@@ -38,9 +38,17 @@
 
 - **Branch.** `feat/db-schema`
 - **Base.** `docs/ws-a-meta` (branch off PR #23, **not** `main`)
-- **Status.** Open. Top of the stack.
+- **Status.** Open. Middle of the stack.
 - **Contains.** Drizzle ORM + `@auth/drizzle-adapter` install; Drizzle schema files for the Auth.js v5 adapter tables, RBAC (roles, permissions, role_permission, user_role), profiles (parent / staff / student + family_link), departments, and parent verification request. Generated migration in `supabase/migrations/0000_auth_rbac_profiles.sql`. Hand-authored RLS policies in `supabase/migrations/0001_rls_policies.sql`. Synthetic seed (1 admin, 5 teachers, 20 parents, 30 students, 5 departments). RLS integration test (skipped without live DB). CI gains a `drizzle-kit check` step. New design docs (`database-schema.sql.md`, `rls-policy-design.md`) and ADR-016 (Drizzle choice).
 - **Depends on.** PR #23 (cites ADR-012..015 in some doc cross-links and assumes the design folder layout from `folder-structure-spec.md`). Feature-domain tables (events, documents, embeddings, etc.) are explicitly **deferred** to subsequent PRs.
+
+### PR #25 — `feat(auth): Auth.js v5 magic-link + Drizzle adapter + RBAC + per-role dashboards`
+
+- **Branch.** `feat/auth-rbac`
+- **Base.** `feat/db-schema` (branch off PR #24, **not** `main`)
+- **Status.** Open. Top of the stack.
+- **Contains.** Auth.js v5 (`next-auth@5.0.0-beta.30`) wired up with `@auth/drizzle-adapter` and the Postgres-flavour Drizzle client; database session strategy; magic-link delivery via Resend with a dev-mode `console.log` fallback; `proxy.ts` at the project root (Node runtime per ADR-012) for authenticated-vs-anonymous gating; bilingual `/login`, `/login/check-email`, `/login/error` pages following the UTM My Portal aesthetic; per-role dashboards using `requireUser` / `requirePermission`; RBAC server-side helpers and a session-context loader that joins roles/permissions/dept-ids/status; Vitest unit tests with a mocked Resend; CI env block adding `AUTH_SECRET` for production builds; ADR-017 (Resend + postgres.js + beta.30 pin); `auth-and-session-design.md`; spike playbook updated to `Status: Done` with implementation file paths and pitfalls encountered.
+- **Depends on.** PR #24 (consumes the Auth.js adapter tables, the RBAC schema, and the seed catalogue; extends the catalogue with `staff:dashboard:read` and `admin:dashboard:read`). Reuses the design layout introduced in PR #23.
 
 ---
 
@@ -51,6 +59,7 @@
 #22   feat/foundation         -> main          (rebase + merge after #3)
 #23   docs/ws-a-meta          -> main          (rebase + merge after #22)
 #24   feat/db-schema          -> main          (rebase + merge after #23)
+#25   feat/auth-rbac          -> main          (rebase + merge after #24)
 ```
 
 After each merge, the next branch in the stack is rebased onto the new `main` and force-pushed. Commit hashes change across these rebases; the **content** is preserved, the **history** is rewritten. Reviewers are encouraged to re-fetch and use `gh pr diff` rather than relying on cached commit pages.

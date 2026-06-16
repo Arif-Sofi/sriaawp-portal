@@ -9,6 +9,9 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      AUTH_SECRET: ci-dummy-secret-32-bytes-of-random-data
+      DATABASE_URL: postgres://ci:ci@127.0.0.1:54322/postgres
     steps:
       - uses: actions/checkout@v4
 

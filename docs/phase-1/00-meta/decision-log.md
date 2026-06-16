@@ -472,4 +472,42 @@ A second decision rides along: how to author RLS policies. Drizzle's RLS API exi
 
 ---
 
+## ADR-017 — Pin `next-auth@5.0.0-beta.30`, `postgres` (postgres.js) driver, and Resend for magic-link delivery
+
+**Status.** Accepted.
+
+**Date.** 2026-05-06.
+
+**Context.**
+PR #25 implements the Auth.js v5 magic-link login + Drizzle adapter wiring laid out in [`../05-tech-spikes/spike-authjs-v5-app-router.md`](../05-tech-spikes/spike-authjs-v5-app-router.md). Three concrete dependency choices need a permanent record so future contributors do not regress them: the exact next-auth beta pin, the Postgres driver, and the magic-link delivery vendor. Each was either left implicit by [ADR-003](#adr-003--database-sessions-not-jwt) or under-specified in earlier ADRs.
+
+**Options.**
+
+- *next-auth pin.* Float on `^5.0.0-beta.x` (current) versus pin to an exact beta build (`5.0.0-beta.30`).
+- *Postgres driver.* `postgres` (postgres.js) versus `pg` (node-postgres).
+- *Magic-link vendor.* Resend versus AWS SES (sandbox), Supabase Auth Email, or Nodemailer + school SMTP.
+
+**Decision.**
+
+1. Pin `next-auth` to the exact build `5.0.0-beta.30`. The v5 beta API has shifted in the past between betas (provider option keys, `proxy` vs middleware export shape); a floating range plus `npm ci` in CI would drift.
+2. Use `postgres` (postgres.js) via Drizzle's `drizzle-orm/postgres-js` import. Lower cold-start cost on serverless, matches the Supabase Transaction Pooler URL format, and the seed script in PR #24 already uses it. `prepare: false` is required by PgBouncer on port 6543.
+3. Use Resend for magic-link delivery. Free tier 100/day / 3,000/month is comfortably above the FYP demo envelope; `next-auth/providers/resend` is a first-party Auth.js provider; one API key, one DNS verification step, no recipient pre-verification (which AWS SES sandbox would force on every parent address). Local development falls back to a `console.log` of the magic-link URL when `AUTH_RESEND_KEY` is unset, so sign-in works against a fresh checkout with no inbox configuration.
+
+**Consequences.**
+
+- `package.json` records `"next-auth": "5.0.0-beta.30"` (no caret). Bumping requires a deliberate edit + a re-run of the auth integration test.
+- `src/lib/db/index.ts` instantiates `postgres(connectionString, { prepare: false, max: 10 })` and Drizzle wraps it via `drizzle-orm/postgres-js`. `pg` and `drizzle-orm/node-postgres` are not used.
+- `src/lib/auth/send-magic-link.ts` is the sole place the Resend SDK is constructed; the `Resend` provider's `sendVerificationRequest` delegates to it. Production sends bilingual BM-first emails; development logs to stdout when `AUTH_RESEND_KEY` is empty.
+- `.env.example` adds `AUTH_RESEND_KEY` and `AUTH_EMAIL_FROM` placeholders alongside `AUTH_SECRET` / `AUTH_URL`. Production rollout requires verifying the school domain in Resend and rotating the key into the environment.
+- The free tier ToS allow Resend to log message metadata. Acceptable because magic-link payloads are single-use 24-hour tokens and contain no PII beyond the recipient address.
+- If Auth.js v5 reaches GA before FYP2 implementation, supersede this ADR with a new one that re-pins to the GA range and documents migration steps.
+
+**References.**
+
+- [`../05-tech-spikes/spike-authjs-v5-app-router.md`](../05-tech-spikes/spike-authjs-v5-app-router.md) — pinned versions table, §0.4 driver choice, §2 vendor comparison.
+- [`../03-design/auth-and-session-design.md`](../03-design/auth-and-session-design.md) — wired-up shape after PR #25.
+- [ADR-002](#adr-002--application-layer-is-the-source-of-truth-for-rbac-supabase-rls-mirrors-as-defense-in-depth), [ADR-003](#adr-003--database-sessions-not-jwt), [ADR-009](#adr-009--rag-audience-admin-teacher-parent-student-excluded-in-v1), [ADR-011](#adr-011--admin-only-parentstudent-linking-with-csv-bulk--per-family-edits), [ADR-012](#adr-012--use-proxyts-not-middlewarets-on-the-nodejs-runtime-for-session-refresh-and-auth-gating), [ADR-013](#adr-013--nest-pages-under-a-role-named-segment-inside-each-roles-parenthesised-route-group), [ADR-016](#adr-016--drizzle-orm-as-the-schema-source-of-truth-drizzle-kit-for-generation-manual-sql-for-rls).
+
+---
+
 <!-- Append new ADRs below using the template in 98-templates/adr-template.md. Do not edit accepted ADRs in place; supersede them. -->
