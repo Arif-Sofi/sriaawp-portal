@@ -13,7 +13,10 @@ Living briefing for the SRIAAWP feature build. Refreshed at the end of every PR 
 - `feat/events-conflict` — PR #47, closes #46. PR5 DONE (conflict checker 11.6 + event creation + override flow).
 - `feat/parent-dashboard` — PR #49, closes #48. PR6 DONE (parent dashboard + linked children, audited).
 - `feat/admin-users` — PR #51, closes #50. PR7 DONE (admin user/role mgmt, verification, family linking, departments).
-- NEXT: PR8 `feat/staff-dashboard` (staff dashboard: dept-scoped events/memos/takwim + quick links; staff:dashboard:read), branched off `feat/admin-users`.
+- `feat/staff-dashboard` — PR #53, closes #52. PR8 DONE (dept-scoped staff dashboard).
+- NEXT: PR9 `feat/documents` (document, document_version, document_chunk tables; files as Postgres bytea — NO external storage dep; list/upload/version/delete; acl_key for RAG pre-filter), branched off `feat/staff-dashboard`. Migration 0005.
+- AFTER PR9: PAUSE for the human's Gemini keys (4 free + 1 paid) and synthetic NotebookLM documents before PR10 (RAG).
+- Divergence note: master plan specced Supabase Storage for documents; PR9 uses Postgres bytea to avoid an external-key dependency for the demo. Production would use Supabase Storage (worth an ADR later).
 - Design direction (locked): both public and role dashboards use the MyUTM green card-grid portal look; theme stays emerald green; reference template at `docs/screencapture-my-utm-my-home-2026-05-05-12_17_36.webp`.
 - Full plan: 10 feature PRs — design-system, public-shell, news, takwim, events+conflict, parent, admin-users, staff, documents, rag-chat. Task board tracks them.
 
@@ -74,3 +77,4 @@ Living briefing for the SRIAAWP feature build. Refreshed at the end of every PR 
 - PR5 (#47, `feat/events-conflict`): conflict checker (master-plan 11.6) as pure unit-tested logic + DB detection + createEvent/publishPendingEvent actions + staff event UI (form, conflict modal, list) + design doc. 26 unit tests; verified green (test, typecheck, lint, build 18 routes); adversarial review confirmed override is permission-gated and hard blocks never persist; fixes applied (soft-conflict duplicate, audit-in-tx, NaN guard, i18n).
 - PR6 (#49, `feat/parent-dashboard`): parent dashboard + linked-children pages + audited family queries. Verified green (typecheck, lint, build, tests); access-control review confirmed no cross-parent access, audit after linkage, no IC leak; guard + audit-ordering + i18n fixes applied.
 - PR7 (#51, `feat/admin-users`): admin user/role management, parent verification, manual + CSV family linking, departments. Verified green (typecheck, lint, build, tests); security review confirmed all 7 mutations permission-gated + audited; fixes applied (deptId validation, revoke filter, primary-contact control, dead keys).
+- PR8 (#53, `feat/staff-dashboard`): department-scoped staff dashboard (events/memos/takwim + shortcuts) reusing vetted queries. Verified green (typecheck, lint, build, tests); gate + scoping confirmed.

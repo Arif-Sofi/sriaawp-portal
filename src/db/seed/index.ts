@@ -1,13 +1,15 @@
 import "dotenv/config";
 
 import { faker } from "@faker-js/faker";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import {
   blackoutWindow,
   departments,
+  document,
+  documentVersion,
   event,
   eventAudience,
   eventOccurrence,
@@ -26,6 +28,7 @@ import {
   userRole,
   users,
 } from "@/db/schema";
+import { computeDocAclKeys } from "@/lib/documents/acl";
 
 import { DEPARTMENTS, PERMISSIONS, ROLES, ROLE_PERMISSIONS } from "./catalogue";
 
@@ -82,6 +85,7 @@ async function seed() {
 
     const curriculumDeptId = departmentIds["CURRICULUM"] ?? Object.values(departmentIds)[0];
     await upsertCalendar(tx, adminUserId, teacherUserId, curriculumDeptId);
+    await upsertDocuments(tx, adminUserId);
   });
 
   await client.end();
@@ -608,6 +612,153 @@ async function upsertCalendar(
       scope: bw.scope,
       isHard: bw.isHard,
     });
+  }
+}
+
+const SEED_DOCUMENTS = [
+  {
+    title: "Buku Panduan Pelajar SRIAAWP 2026",
+    visibility: "internal" as const,
+    visibilityRoles: null,
+    deptId: null,
+    filename: "buku-panduan-pelajar-2026.md",
+    content: `# Buku Panduan Pelajar SRIAAWP 2026
+
+## Pendahuluan
+
+Sekolah Rendah Islam Antarabangsa Wilayah Persekutuan (SRIAAWP) menyediakan pendidikan Islam bertaraf antarabangsa untuk pelajar dari Tahun 1 hingga Tahun 6. Panduan ini bertujuan membantu pelajar dan ibu bapa memahami peraturan dan harapan sekolah.
+
+## Waktu Persekolahan
+
+Sesi pagi bermula pada pukul 7:30 pagi dan berakhir pada pukul 1:30 petang dari Isnin hingga Jumaat. Pelajar diwajibkan hadir tepat pada masanya. Ketidakhadiran melebihi tiga hari berturut-turut memerlukan surat pengesahan doktor.
+
+## Pakaian Seragam
+
+Pelajar lelaki memakai baju Melayu putih dengan seluar dan sampin sekolah. Pelajar perempuan memakai baju kurung putih dengan tudung biru gelap berlogo sekolah. Kasut hitam berkilat wajib dipakai setiap hari persekolahan.
+
+## Peraturan Am
+
+Semua pelajar dikehendaki menghormati guru, rakan sebaya, dan harta benda sekolah. Penggunaan telefon bimbit dilarang semasa waktu belajar. Sebarang pelanggaran peraturan akan ditangani mengikut prosedur disiplin sekolah.`,
+  },
+  {
+    title: "Takwim Akademik 2026",
+    visibility: "public" as const,
+    visibilityRoles: null,
+    deptId: null,
+    filename: "takwim-akademik-2026.md",
+    content: `# Takwim Akademik SRIAAWP 2026
+
+## Penggal Pertama: Januari — Mac
+
+- **2 Januari**: Pembukaan sesi persekolahan 2026
+- **15 — 22 Mei**: Peperiksaan pertengahan tahun
+- **28 Februari**: Tarikh akhir penyerahan laporan prestasi
+- **14 Mac**: Hari Sukan Tahunan SRIAAWP 2026
+
+## Penggal Kedua: April — Jun
+
+- **1 April**: Bermula penggal kedua
+- **10 — 14 Jun**: Minggu peperiksaan akhir tahun
+- **20 Jun**: Hari Terbuka Sekolah
+- **30 Jun**: Penutupan penggal kedua
+
+## Cuti Umum dan Sekolah
+
+Sekolah akan ditutup sempena cuti umum persekutuan dan cuti sekolah seperti yang ditetapkan oleh Kementerian Pendidikan Malaysia. Ibu bapa akan dimaklumkan melalui portal apabila terdapat perubahan jadual.`,
+  },
+  {
+    title: "Panduan Aktiviti Ko-Kurikulum 2026",
+    visibility: "internal" as const,
+    visibilityRoles: null,
+    deptId: null,
+    filename: "panduan-kokurikulum-2026.md",
+    content: `# Panduan Aktiviti Ko-Kurikulum SRIAAWP 2026
+
+## Pengenalan
+
+Aktiviti ko-kurikulum merupakan sebahagian penting daripada pembangunan holistik pelajar SRIAAWP. Semua pelajar dari Tahun 2 hingga Tahun 6 diwajibkan menyertai sekurang-kurangnya satu persatuan, satu pasukan sukan, dan satu kelab.
+
+## Persatuan dan Kelab
+
+Persatuan yang tersedia termasuk Persatuan Bahasa Melayu, Kelab Sains dan Matematik, Kelab Komputer, serta Persatuan Agama Islam. Pendaftaran dibuat pada awal tahun dan pelajar tidak dibenarkan menukar persatuan selepas 31 Januari.
+
+## Sukan
+
+Sukan yang ditawarkan merangkumi bola sepak, bola jaring, badminton, dan olahraga. Latihan diadakan setiap Rabu dan Khamis dari pukul 2:00 petang hingga 4:00 petang. Pelajar yang mewakili sekolah dalam pertandingan peringkat daerah atau negeri layak memohon anugerah pencapaian melalui portal.
+
+## Penilaian Ko-Kurikulum
+
+Kehadiran dan penglibatan aktif dalam ko-kurikulum akan dinilai dan direkodkan dalam buku kemajuan pelajar. Markah ko-kurikulum membentuk 10% daripada penilaian keseluruhan pelajar.`,
+  },
+  {
+    title: "Dasar Penggunaan Portal SRIAAWP",
+    visibility: "public" as const,
+    visibilityRoles: null,
+    deptId: null,
+    filename: "dasar-penggunaan-portal.md",
+    content: `# Dasar Penggunaan Portal SRIAAWP
+
+## Tujuan Portal
+
+Portal SRIAAWP bertujuan memudahkan komunikasi antara sekolah, ibu bapa, pelajar, dan kakitangan. Portal ini menyediakan akses kepada maklumat akademik, takwim sekolah, pengumuman rasmi, dan perkhidmatan pentadbiran.
+
+## Tanggungjawab Pengguna
+
+Setiap pengguna bertanggungjawab menjaga keselamatan akaun masing-masing. Kata laluan hendaklah ditukar setiap enam bulan. Sebarang akses tidak sah perlu dilaporkan kepada pentadbir sistem dengan segera.
+
+## Perlindungan Data Peribadi
+
+Portal ini dibangunkan selaras dengan Akta Perlindungan Data Peribadi 2010 (PDPA). Maklumat peribadi pelajar dan ibu bapa hanya digunakan untuk tujuan pendidikan dan pentadbiran sekolah. Data tidak akan dikongsi dengan pihak ketiga tanpa kebenaran bertulis.
+
+## Penggunaan yang Dilarang
+
+Pengguna dilarang menggunakan portal untuk menyebarkan maklumat palsu, bahan yang menyinggung perasaan, atau sebarang kandungan yang melanggar undang-undang Malaysia. Pelanggaran akan mengakibatkan penggantungan akaun dan tindakan disiplin selanjutnya.`,
+  },
+];
+
+async function upsertDocuments(tx: Tx, adminUserId: string): Promise<void> {
+  const [existing] = await tx.select({ id: document.id }).from(document).limit(1);
+  if (existing) return;
+
+  for (const doc of SEED_DOCUMENTS) {
+    const aclKeys = computeDocAclKeys({
+      visibility: doc.visibility,
+      visibilityRoles: doc.visibilityRoles,
+      deptId: doc.deptId,
+    });
+
+    const [docRow] = await tx
+      .insert(document)
+      .values({
+        title: doc.title,
+        visibility: doc.visibility,
+        visibilityRoles: doc.visibilityRoles,
+        deptId: doc.deptId,
+        aclKeys,
+        uploadedByUserId: adminUserId,
+        currentVersionId: null,
+      })
+      .returning({ id: document.id });
+
+    const contentBuffer = Buffer.from(doc.content);
+
+    const [versionRow] = await tx
+      .insert(documentVersion)
+      .values({
+        documentId: docRow.id,
+        versionNo: 1,
+        filename: doc.filename,
+        mimeType: "text/markdown",
+        sizeBytes: contentBuffer.byteLength,
+        content: contentBuffer,
+        uploadedByUserId: adminUserId,
+      })
+      .returning({ id: documentVersion.id });
+
+    await tx
+      .update(document)
+      .set({ currentVersionId: versionRow.id, updatedAt: new Date() })
+      .where(eq(document.id, docRow.id));
   }
 }
 
