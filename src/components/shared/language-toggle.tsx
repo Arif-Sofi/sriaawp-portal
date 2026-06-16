@@ -25,21 +25,21 @@ export function LanguageToggle({ locale }: LanguageToggleProps) {
         className={cn(
           "px-1.5 py-0.5 transition-colors",
           locale === "ms"
-            ? "font-semibold text-primary"
-            : "text-muted-foreground hover:text-foreground",
+            ? "font-semibold text-primary-foreground"
+            : "text-primary-foreground/70 hover:text-primary-foreground",
         )}
       >
         BM
       </button>
-      <span className="text-border">|</span>
+      <span className="text-primary-foreground/40">|</span>
       <button
         type="button"
         onClick={() => switchTo("en")}
         className={cn(
           "px-1.5 py-0.5 transition-colors",
           locale === "en"
-            ? "font-semibold text-primary"
-            : "text-muted-foreground hover:text-foreground",
+            ? "font-semibold text-primary-foreground"
+            : "text-primary-foreground/70 hover:text-primary-foreground",
         )}
       >
         EN

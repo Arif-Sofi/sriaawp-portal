@@ -1,10 +1,102 @@
-export default function PublicLandingPage() {
+import Link from "next/link";
+
+import { EmptyState } from "@/components/ui/empty-state";
+import { Icon } from "@/components/ui/icon";
+import { AppShortcuts } from "@/components/portal/app-shortcuts";
+import { AppTile } from "@/components/portal/app-tile";
+import { PortalSection } from "@/components/portal/portal-section";
+import { PromoBanner } from "@/components/portal/promo-banner";
+import { translate } from "@/lib/i18n";
+import { ui } from "@/lib/i18n/dictionary";
+import { getLocale } from "@/lib/i18n/server";
+
+export default async function PublicLandingPage() {
+  const locale = await getLocale();
+  const t = (key: string) => translate(ui, key, locale);
+
+  const shortcuts = [
+    { href: "/takwim", label: t("shortcut.takwim"), icon: <Icon name="calendar" /> },
+    { href: "/news", label: t("shortcut.berita"), icon: <Icon name="news" /> },
+    { href: "/privacy", label: t("shortcut.privasi"), icon: <Icon name="file" /> },
+    { href: "/login", label: t("shortcut.logMasuk"), icon: <Icon name="users" /> },
+  ];
+
+  const quickLinks = [
+    { href: "/news", label: t("shortcut.berita"), icon: <Icon name="news" /> },
+    { href: "/takwim", label: t("shortcut.takwim"), icon: <Icon name="calendar" /> },
+    { href: "/privacy", label: t("shortcut.privasi"), icon: <Icon name="file" /> },
+  ];
+
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16">
-      <h1 className="text-3xl font-semibold">SRIAAWP Portal</h1>
-      <p className="mt-4 text-zinc-600">
-        Public landing scaffold. Replaced in FYP2 with the real Takwim, news, and login entry.
-      </p>
-    </main>
+    <>
+      <AppShortcuts items={shortcuts} />
+
+      <div className="py-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <PortalSection title={t("section.welcome")}>
+            <p className="text-sm text-muted-foreground">{t("welcome.body")}</p>
+            <div className="mt-4">
+              <Link href="/login" className="text-sm font-medium text-primary hover:underline">
+                {t("home.heroCta")}
+              </Link>
+            </div>
+          </PortalSection>
+
+          <PortalSection
+            title={t("section.news")}
+            action={
+              <Link href="/news" className="hover:underline">
+                {t("section.seeAll")}
+              </Link>
+            }
+          >
+            <EmptyState
+              title={t("empty.noNews")}
+              description={t("empty.noNewsDesc")}
+              className="border-0 bg-transparent py-6"
+            />
+          </PortalSection>
+
+          <PortalSection
+            title={t("section.takwim")}
+            action={
+              <Link href="/takwim" className="hover:underline">
+                {t("section.seeAll")}
+              </Link>
+            }
+          >
+            <EmptyState
+              title={t("empty.noTakwim")}
+              description={t("empty.noTakwimDesc")}
+              className="border-0 bg-transparent py-6"
+            />
+          </PortalSection>
+
+          <PortalSection title={t("section.quickLinks")}>
+            <div className="flex flex-wrap gap-1">
+              {quickLinks.map((item) => (
+                <AppTile key={item.href} href={item.href} label={item.label} icon={item.icon} />
+              ))}
+            </div>
+          </PortalSection>
+
+          <div className="md:col-span-2">
+            <PromoBanner
+              tone="primary"
+              title={t("promo.title")}
+              body={t("promo.body")}
+              action={
+                <Link
+                  href="/login"
+                  className="inline-flex h-9 items-center justify-center rounded-md bg-primary-foreground px-4 text-sm font-medium text-primary transition-colors hover:bg-primary-foreground/90"
+                >
+                  {t("nav.login")}
+                </Link>
+              }
+            />
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
