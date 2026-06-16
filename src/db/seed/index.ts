@@ -9,6 +9,8 @@ import {
   departments,
   familyLink,
   GLOBAL_SCOPE_SENTINEL,
+  memo,
+  news,
   parentProfile,
   parentVerificationRequest,
   permissions,
@@ -68,6 +70,10 @@ async function seed() {
 
     await upsertFamilyLinks(tx, parentUserIds, studentUserIds);
     await approveParents(tx, parentUserIds, adminUserId);
+
+    const teacherUserId = teacherUserIds[0]?.userId ?? adminUserId;
+    await upsertNews(tx, adminUserId, teacherUserId);
+    await upsertMemos(tx, adminUserId, teacherUserId);
   });
 
   await client.end();
@@ -318,6 +324,107 @@ async function approveParents(tx: Tx, parentIds: string[], reviewerUserId: strin
         reviewerUserId,
         reviewedAt: new Date(),
         notes: "Auto-approved by seed script",
+      })
+      .onConflictDoNothing();
+  }
+}
+
+const SEED_NEWS = [
+  {
+    slug: "selamat-datang-ke-portal-sriaawp",
+    title: "Selamat Datang ke Portal SRIAAWP",
+    excerpt: "Portal baharu SRIAAWP kini tersedia untuk ibu bapa, guru, dan pelajar.",
+    body: "Portal rasmi SRIAAWP telah dilancarkan. Ibu bapa dan penjaga boleh mengakses maklumat pelajar, takwim sekolah, dan menghantar pertanyaan melalui portal ini.",
+    visibility: "public" as const,
+    publishedAt: new Date("2026-01-10T08:00:00Z"),
+  },
+  {
+    slug: "jadual-peperiksaan-pertengahan-tahun-2026",
+    title: "Jadual Peperiksaan Pertengahan Tahun 2026",
+    excerpt: "Jadual peperiksaan pertengahan tahun bagi semua tahun telah ditetapkan.",
+    body: "Peperiksaan pertengahan tahun 2026 akan diadakan dari 15 Mei hingga 22 Mei 2026. Sila semak jadual terperinci di papan kenyataan sekolah.",
+    visibility: "public" as const,
+    publishedAt: new Date("2026-02-01T08:00:00Z"),
+  },
+  {
+    slug: "aktiviti-hari-sukan-tahunan-2026",
+    title: "Aktiviti Hari Sukan Tahunan 2026",
+    excerpt: "Hari Sukan Tahunan SRIAAWP dijadualkan pada bulan Mac 2026.",
+    body: "Hari Sukan Tahunan SRIAAWP 2026 akan berlangsung pada 14 Mac 2026 di padang sekolah. Ibu bapa dijemput hadir untuk memberi sokongan kepada anak-anak mereka.",
+    visibility: "public" as const,
+    publishedAt: new Date("2026-02-15T08:00:00Z"),
+  },
+  {
+    slug: "mesyuarat-pibg-suku-tahun-pertama",
+    title: "Mesyuarat PIBG Suku Tahun Pertama",
+    excerpt: "Mesyuarat PIBG bagi suku tahun pertama 2026 dijadualkan pada 20 Februari.",
+    body: "Semua kakitangan sekolah dijemput menghadiri Mesyuarat PIBG yang akan diadakan pada 20 Februari 2026, jam 2.30 petang di Dewan Utama. Kehadiran adalah wajib bagi semua guru.",
+    visibility: "internal" as const,
+    publishedAt: new Date("2026-02-05T08:00:00Z"),
+  },
+  {
+    slug: "panduan-ibu-bapa-portal-2026",
+    title: "Panduan Penggunaan Portal untuk Ibu Bapa",
+    excerpt: "Panduan lengkap cara menggunakan portal SRIAAWP untuk ibu bapa.",
+    body: "Dokumen panduan penggunaan portal SRIAAWP untuk ibu bapa dan penjaga telah dikemaskini. Sila hubungi pejabat sekolah jika memerlukan bantuan lanjut.",
+    visibility: "role_list" as const,
+    visibilityRoles: ["parent"],
+    publishedAt: new Date("2026-01-20T08:00:00Z"),
+  },
+  {
+    slug: "draf-rancangan-strategik-2026-2028",
+    title: "Draf Rancangan Strategik SRIAAWP 2026-2028",
+    excerpt: "Draf rancangan strategik sekolah sedang dalam semakan.",
+    body: "Draf rancangan strategik SRIAAWP untuk tempoh 2026-2028 sedang disediakan. Maklum balas daripada kakitangan akan diterima sehingga 31 Mac 2026.",
+    visibility: "internal" as const,
+    publishedAt: null,
+  },
+];
+
+const SEED_MEMOS = [
+  {
+    title: "Peringatan: Penyerahan Laporan Prestasi Pelajar",
+    body: "Semua guru diminta menyerahkan laporan prestasi pelajar bagi suku tahun pertama sebelum 28 Februari 2026. Sila hantar kepada Penolong Kanan Akademik.",
+    visibility: "internal" as const,
+    pinned: true,
+    publishedAt: new Date("2026-02-10T08:00:00Z"),
+  },
+  {
+    title: "Taklimat Keselamatan Data PDPA",
+    body: "Taklimat mengenai keperluan Akta Perlindungan Data Peribadi 2010 akan diadakan pada 5 Mac 2026. Kehadiran semua kakitangan adalah wajib.",
+    visibility: "internal" as const,
+    pinned: false,
+    publishedAt: new Date("2026-02-20T08:00:00Z"),
+  },
+  {
+    title: "Borang Kebenaran Aktiviti Ko-Kurikulum",
+    body: "Ibu bapa dan penjaga diminta mengembalikan borang kebenaran aktiviti ko-kurikulum sebelum 1 Mac 2026. Borang boleh dimuat turun daripada portal.",
+    visibility: "role_list" as const,
+    visibilityRoles: ["teacher"],
+    pinned: false,
+    publishedAt: new Date("2026-02-12T08:00:00Z"),
+  },
+];
+
+async function upsertNews(tx: Tx, adminUserId: string, teacherUserId: string): Promise<void> {
+  for (const item of SEED_NEWS) {
+    await tx
+      .insert(news)
+      .values({
+        ...item,
+        authorUserId: item.visibility === "internal" ? teacherUserId : adminUserId,
+      })
+      .onConflictDoNothing();
+  }
+}
+
+async function upsertMemos(tx: Tx, adminUserId: string, teacherUserId: string): Promise<void> {
+  for (const item of SEED_MEMOS) {
+    await tx
+      .insert(memo)
+      .values({
+        ...item,
+        authorUserId: item.visibility === "role_list" ? teacherUserId : adminUserId,
       })
       .onConflictDoNothing();
   }

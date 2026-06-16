@@ -8,6 +8,13 @@
       "when": 1778066250640,
       "tag": "0000_auth_rbac_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780149844097,
+      "tag": "0002_content_audit",
+      "breakpoints": true
     }
   ]
 }
