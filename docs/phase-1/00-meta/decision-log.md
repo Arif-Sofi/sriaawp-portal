@@ -433,4 +433,43 @@ Option 3 — `next.config.ts` keeps `reactCompiler: true`. The compilation mode 
 
 ---
 
+## ADR-016 — Drizzle ORM as the schema source of truth; drizzle-kit for generation; manual SQL for RLS
+
+**Status.** Accepted.
+
+**Date.** 2026-05-06.
+
+**Context.**
+The portal needs an ORM/migration story before any feature schema can land. The candidates are Prisma, Drizzle, Kysely, and raw SQL. The Foundation spike already endorsed Drizzle in [`folder-structure-spec.md`](../03-design/folder-structure-spec.md) but did not record the rationale. PR #24 ships the first migration, so the decision must be locked.
+
+A second decision rides along: how to author RLS policies. Drizzle's RLS API exists but is evolving; raw SQL is more auditable and reads cleanly into the thesis appendix.
+
+**Options.**
+1. Prisma. Mature, generates a typed client, has its own DSL, and supports migrations. Bundle size is heavy and the generated client is a runtime adapter, not a query-builder you can step through. RLS support requires raw SQL anyway.
+2. Drizzle ORM. SQL-first; types inferred from the schema definitions; lightweight runtime; explicit migrations via `drizzle-kit generate`. Has a first-party `@auth/drizzle-adapter` for Auth.js v5 (which we adopt per ADR-003).
+3. Kysely. Excellent type-safety on hand-written SQL but no migration tool of its own; we would still need `drizzle-kit` or hand-rolled migrations.
+4. Raw SQL via `node-postgres`. Maximum control; minimum ergonomics; type-safety only via `pg-types`. Rejected — too much hand-written boilerplate for an FYP team.
+
+**Decision.**
+- **ORM.** Drizzle ORM. Schema files live under `src/db/schema/` (split by domain: `auth.ts`, `rbac.ts`, `profiles.ts`, `departments.ts`). The `index.ts` is a barrel re-export.
+- **Migrations.** `drizzle-kit generate` produces SQL into `supabase/migrations/`. Migration runner is the Supabase CLI (`supabase db reset` / `supabase db push`), not `drizzle-kit migrate` — we want a single migration runner across the team and Supabase ships one.
+- **RLS.** Authored as **manual SQL** in `supabase/migrations/0001_rls_policies.sql` (and follow-on numbered files for feature tables). The drizzle-kit journal does not track these files — they are still applied by Supabase's runner because they live alongside the generated SQL in `supabase/migrations/` and are picked up alphabetically.
+- **Auth.js adapter.** `@auth/drizzle-adapter` (Postgres dialect). We override the default table definitions to use `uuid` IDs with `gen_random_uuid()` and to add `created_at` / `updated_at` to `users` while keeping every column name the adapter expects.
+
+**Consequences.**
+- Type safety end-to-end: server actions read Drizzle's inferred row types from `src/db/types.ts`.
+- Schema diffs are reviewable as plain SQL in the migration files.
+- RLS policies are auditable as plain SQL — important for the thesis appendix and for examiner review.
+- The Drizzle journal (`supabase/migrations/meta/_journal.json`) tracks only the generated migrations; manual RLS SQL is intentionally outside it. Drift between the Drizzle schema and the manual SQL is detected by `drizzle-kit check` (in CI).
+- Folder structure deviation from the spec: [`folder-structure-spec.md`](../03-design/folder-structure-spec.md) shows `src/db/schema.ts` as a single file. PR #24 splits the schema into `src/db/schema/{auth,rbac,profiles,departments}.ts` to keep each domain reviewable in isolation. The spec doc will be updated to reflect this in a follow-up docs PR; the alias `import from "@/db/schema"` resolves to the directory's `index.ts` so consumer code is unaffected.
+- IC numbers stored as `bytea` via `pgcrypto.pgp_sym_encrypt` (ADR-008). The encryption key is read from `IC_ENCRYPTION_KEY`; rotation is a re-encryption job (not in scope for PR #24).
+- The first migration `0000_auth_rbac_profiles.sql` enables `pgcrypto`. The future `vector` and `btree_gist` extensions are explicitly out of scope; they ship with the embedding-table and event-table PRs respectively.
+
+**References.**
+- `src/db/schema/`, `drizzle.config.ts`, `supabase/migrations/0000_auth_rbac_profiles.sql`, `supabase/migrations/0001_rls_policies.sql`.
+- [`../03-design/database-schema.sql.md`](../03-design/database-schema.sql.md), [`../03-design/rls-policy-design.md`](../03-design/rls-policy-design.md).
+- [ADR-002](#adr-002--application-layer-is-the-source-of-truth-for-rbac-supabase-rls-mirrors-as-defense-in-depth), [ADR-003](#adr-003--database-sessions-not-jwt), [ADR-008](#adr-008--pdpa-2010-aligned-design-from-day-1).
+
+---
+
 <!-- Append new ADRs below using the template in 98-templates/adr-template.md. Do not edit accepted ADRs in place; supersede them. -->

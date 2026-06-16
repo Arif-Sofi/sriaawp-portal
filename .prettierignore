@@ -9,6 +9,13 @@ blob-report
 playwright/.cache
 package-lock.json
 
+# Local agent worktrees (Claude Code).
+.claude/
+
+# Drizzle migrations are generated; Supabase migrations directory is the
+# source of truth for SQL DDL prose.
+supabase/migrations/
+
 # Phase-1 docs are authored in their own style and reviewed in PR #3.
 docs/
 

@@ -29,5 +29,8 @@ jobs:
       - name: Format check
         run: npm run format:check
 
+      - name: Drizzle schema check
+        run: npx drizzle-kit check
+
       - name: Unit tests
         run: npm test
