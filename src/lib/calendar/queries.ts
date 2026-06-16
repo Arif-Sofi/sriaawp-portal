@@ -1,4 +1,4 @@
-import { and, eq, exists, gt, inArray, lt, or } from "drizzle-orm";
+import { and, count, desc, eq, exists, gt, inArray, lt, or } from "drizzle-orm";
 
 import { blackoutWindow, event, eventAudience, eventOccurrence, room } from "@/db/schema";
 import { db } from "@/lib/db";
@@ -137,4 +137,107 @@ export async function listBlackouts({ fromISO, toISO }: WindowParams): Promise<C
     .where(
       and(lt(blackoutWindow.startAt, new Date(toISO)), gt(blackoutWindow.endAt, new Date(fromISO))),
     );
+}
+
+export type ManageableEvent = {
+  id: string;
+  title: string;
+  status: "draft" | "published" | "pending_review" | "cancelled";
+  priority: "normal" | "exam";
+  startAt: Date;
+  endAt: Date;
+  roomName: string | null;
+  occurrenceCount: number;
+};
+
+type ManageableUser = { id: string; deptIds: string[] };
+
+export async function listManageableEvents(user: ManageableUser): Promise<ManageableEvent[]> {
+  const occCountSubquery = db
+    .select({
+      eventId: eventOccurrence.eventId,
+      occCount: count(eventOccurrence.id).as("occ_count"),
+    })
+    .from(eventOccurrence)
+    .groupBy(eventOccurrence.eventId)
+    .as("occ_counts");
+
+  const rows = await db
+    .select({
+      id: event.id,
+      title: event.title,
+      status: event.status,
+      priority: event.priority,
+      startAt: event.startAt,
+      endAt: event.endAt,
+      roomName: room.name,
+      occurrenceCount: occCountSubquery.occCount,
+    })
+    .from(event)
+    .leftJoin(room, eq(room.id, event.roomId))
+    .leftJoin(occCountSubquery, eq(occCountSubquery.eventId, event.id))
+    .where(
+      user.deptIds.length > 0
+        ? or(eq(event.organizerUserId, user.id), inArray(event.deptId, user.deptIds))
+        : eq(event.organizerUserId, user.id),
+    )
+    .orderBy(desc(event.createdAt));
+
+  return rows.map((row) => ({
+    ...row,
+    occurrenceCount: row.occurrenceCount ?? 0,
+  }));
+}
+
+export type EventForEdit = {
+  id: string;
+  title: string;
+  description: string | null;
+  startAt: Date;
+  endAt: Date;
+  status: "draft" | "published" | "pending_review" | "cancelled";
+  priority: "normal" | "exam";
+  roomId: string | null;
+  organizerUserId: string | null;
+  deptId: string | null;
+  rrule: string | null;
+  audiences: { type: "public" | "role" | "department"; ref: string | null }[];
+};
+
+export async function getEventForEdit(id: string): Promise<EventForEdit | null> {
+  const [row] = await db
+    .select({
+      id: event.id,
+      title: event.title,
+      description: event.description,
+      startAt: event.startAt,
+      endAt: event.endAt,
+      status: event.status,
+      priority: event.priority,
+      roomId: event.roomId,
+      organizerUserId: event.organizerUserId,
+      deptId: event.deptId,
+      rrule: event.rrule,
+    })
+    .from(event)
+    .where(eq(event.id, id))
+    .limit(1);
+
+  if (!row) return null;
+
+  const audiences = await db
+    .select({ type: eventAudience.audienceType, ref: eventAudience.audienceRef })
+    .from(eventAudience)
+    .where(eq(eventAudience.eventId, id));
+
+  return { ...row, audiences };
+}
+
+export type RoomOption = { id: string; name: string; code: string; capacity: number | null };
+
+export async function listRooms(): Promise<RoomOption[]> {
+  return db
+    .select({ id: room.id, name: room.name, code: room.code, capacity: room.capacity })
+    .from(room)
+    .orderBy(room.name);
 }

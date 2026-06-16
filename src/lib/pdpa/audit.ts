@@ -1,4 +1,7 @@
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+
 import { auditLog } from "@/db/schema";
+import type * as schema from "@/db/schema";
 import { db } from "@/lib/db";
 
 type AuditEntry = {
@@ -9,8 +12,10 @@ type AuditEntry = {
   metadata?: Record<string, unknown> | null;
 };
 
-export async function writeAudit(entry: AuditEntry): Promise<void> {
-  await db.insert(auditLog).values({
+type Executor = Pick<PostgresJsDatabase<typeof schema>, "insert">;
+
+export async function writeAudit(entry: AuditEntry, executor: Executor = db): Promise<void> {
+  await executor.insert(auditLog).values({
     actorUserId: entry.actorUserId,
     action: entry.action,
     resourceType: entry.resourceType,
