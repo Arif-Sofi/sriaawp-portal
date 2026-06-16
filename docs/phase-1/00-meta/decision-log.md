@@ -304,4 +304,133 @@ Option 4. Admin-only creation; tool supports single-row entry **and** CSV bulk i
 
 ---
 
+## ADR-012 — Use `proxy.ts` (not `middleware.ts`) on the Node.js runtime for session refresh and auth gating
+
+**Status.** Accepted.
+
+**Date.** 2026-05-05.
+
+**Context.**
+Next.js 16 deprecates the `middleware.ts` file convention. The replacement is `proxy.ts` (or `.js`), with the function renamed from `middleware(request)` to `proxy(request)`. Critically, the Edge runtime is **no longer supported** in `proxy` — the codepath was dropped in v16, leaving Node.js as the only runtime. The `skipMiddlewareUrlNormalize` `next.config.ts` flag is renamed to `skipProxyUrlNormalize`. Source: [`../05-tech-spikes/spike-nextjs-16.md`](../05-tech-spikes/spike-nextjs-16.md) pitfall 2 and `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`.
+
+**Options.**
+1. Stick with `middleware.ts`. Rejected — deprecated in v16; build emits a warning today and the file will be removed in a future minor.
+2. Use `proxy.ts` on the Node.js runtime. Matches v16 conventions; Auth.js v5 + Supabase clients run cleanly on Node anyway.
+3. Bypass `proxy` entirely; do auth checks only in Server Actions / Route Handlers / RSC layouts. Rejected — loses the cross-cutting session-refresh hook on every request, and would push redirect logic into every page layout.
+
+**Decision.**
+Option 2 — `proxy.ts` on the Node.js runtime is the canonical file convention going forward.
+
+**Consequences.**
+- The file at `proxy.ts` (project root, alongside `next.config.ts`) handles session refresh, auth gating, and request normalisation. It does **not** enforce RBAC — that stays in Server Actions per [ADR-002](#adr-002--application-layer-is-the-source-of-truth-for-rbac-supabase-rls-mirrors-as-defense-in-depth).
+- Edge-only logic (geo lookups, ultra-low-latency redirects) is no longer available in `proxy`. Any such codepath must move into a Route Handler — but no current FR depends on Edge runtime.
+- [`auth-and-session-design.md`](../03-design/auth-and-session-design.md) (placeholder; authored later in WS-C) must reflect the `proxy.ts` location and Node.js runtime.
+- `next.config.ts` uses `skipProxyUrlNormalize` (not the old `skipMiddlewareUrlNormalize`) when the URL-normalisation behaviour needs to change. Currently default-on.
+- The matcher pattern in [`spike-nextjs-16.md`](../05-tech-spikes/spike-nextjs-16.md) Code pattern 4 is the copy-paste starting point.
+
+**References.**
+- [`../05-tech-spikes/spike-nextjs-16.md`](../05-tech-spikes/spike-nextjs-16.md) — pitfall 2, code pattern 4.
+- `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`.
+- `node_modules/next/dist/docs/01-app/02-guides/upgrading/version-16.md`.
+- [ADR-002](#adr-002--application-layer-is-the-source-of-truth-for-rbac-supabase-rls-mirrors-as-defense-in-depth), [ADR-003](#adr-003--database-sessions-not-jwt).
+
+---
+
+## ADR-013 — Nest pages under a role-named segment inside each role's parenthesised route group
+
+**Status.** Accepted.
+
+**Date.** 2026-05-05.
+
+**Context.**
+Next.js 16's parenthesised route groups (e.g. `(parent)`, `(staff)`, `(admin)`) are **organisational only** — they do not alter the URL. Two pages in different groups that resolve to the same URL path cause a build-time error: *"You cannot have two parallel pages that resolve to the same path."* The first scaffold of this repo placed `dashboard/page.tsx` directly inside each role group, all of which resolved to `/dashboard` and the build failed. Source: [`../05-tech-spikes/spike-nextjs-16.md`](../05-tech-spikes/spike-nextjs-16.md) pitfall 1 and `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/route-groups.md`.
+
+**Options.**
+1. Drop route groups entirely; use bare folders (`/parent/...`, `/staff/...`). Rejected — loses the per-role `layout.tsx` injection that route groups exist to enable (the `(parent)/layout.tsx` only wraps parent pages).
+2. Nest each role's pages under a role-named segment inside the group: `(parent)/parent/dashboard/page.tsx` → `/parent/dashboard`. Group adds the layout; segment adds the URL prefix. Both concerns separated.
+3. Use a top-level `[role]` dynamic segment and route at runtime. Rejected — defeats build-time route checking; harder to type-narrow per-role logic.
+
+**Decision.**
+Option 2 — for each authenticated role group `(parent)`, `(staff)`, `(admin)`, pages live under a role-named segment **inside** the group. The `(public)` and `(auth)` groups don't need the prefix because their segments are already URL-distinct (`/`, `/login`).
+
+**Consequences.**
+- Folder layout (already in place via the Foundation spike):
+  - `src/app/(public)/page.tsx` → `/`
+  - `src/app/(auth)/login/page.tsx` → `/login`
+  - `src/app/(parent)/parent/dashboard/page.tsx` → `/parent/dashboard`
+  - `src/app/(staff)/staff/dashboard/page.tsx` → `/staff/dashboard`
+  - `src/app/(admin)/admin/dashboard/page.tsx` → `/admin/dashboard`
+- Per-role layouts live at `(parent)/layout.tsx`, `(staff)/layout.tsx`, `(admin)/layout.tsx` — they wrap every page in that role's tree and are the natural place for role-scoped navigation, breadcrumbs, and `auth()` redirects.
+- Documented in [`../03-design/folder-structure-spec.md`](../03-design/folder-structure-spec.md) so FYP2 contributors don't repeat the URL-collision mistake.
+- New role groups (e.g. a future `(teacher)` if Teacher is split from Staff) follow the same pattern by default.
+
+**References.**
+- [`../05-tech-spikes/spike-nextjs-16.md`](../05-tech-spikes/spike-nextjs-16.md) — pitfall 1.
+- `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/route-groups.md`.
+
+---
+
+## ADR-014 — Cache Components / `cacheComponents` is opt-out for v1; opt routes in selectively
+
+**Status.** Accepted.
+
+**Date.** 2026-05-05.
+
+**Context.**
+Next.js 16 removes `experimental_ppr` and replaces it with `cacheComponents: true` in `next.config.ts`. The new model requires the `'use cache'` directive at the function or file level and uses `cacheLife` / `cacheTag` helpers (no longer `unstable_` prefixed). The two are not the same model — turning on `cacheComponents` globally changes the rendering behaviour of every dynamic page in the app, and the data shape for most routes is not finalised yet. Source: [`../05-tech-spikes/spike-nextjs-16.md`](../05-tech-spikes/spike-nextjs-16.md) pitfall 5.
+
+**Options.**
+1. Enable `cacheComponents: true` globally in `next.config.ts` from day one. Rejected — the data layer is unwritten; rendering decisions made today would be made on incomplete information.
+2. Leave `cacheComponents` default-off; opt individual routes in via the `'use cache'` directive when their data shape is finalised. The first likely opt-in target is `(public)/takwim` (read-heavy, anonymous, edge-cacheable per [ADR-004](#adr-004--server-actions-for-mutations--route-handlers-only-for-streaming--public-cached-endpoints)).
+3. Enable globally + add per-route opt-outs. Rejected — opt-in is safer than opt-out for a feature with system-wide rendering implications.
+
+**Decision.**
+Option 2.
+
+**Consequences.**
+- `next.config.ts` does **not** set `cacheComponents` for v1. The Foundation PR's config is `{ reactCompiler: true }` and stays that way.
+- Routes that benefit from caching (public Takwim, public news, possibly the school landing page) opt in by adding `'use cache'` and a `cacheLife` policy when their queries are stable.
+- `unstable_cache` / `unstable_cacheLife` / `unstable_cacheTag` are not used — v16 has the stable equivalents.
+- A follow-up spike (track in `learning-checklist.md`) profiles the public Takwim under Cache Components and decides the `cacheLife` profile; until then, that route renders fresh on every request.
+
+**References.**
+- [`../05-tech-spikes/spike-nextjs-16.md`](../05-tech-spikes/spike-nextjs-16.md) — pitfall 5.
+- `node_modules/next/dist/docs/01-app/01-getting-started/08-caching.md`.
+- `node_modules/next/dist/docs/01-app/02-guides/upgrading/version-16.md` (§ Cache Components).
+- [ADR-004](#adr-004--server-actions-for-mutations--route-handlers-only-for-streaming--public-cached-endpoints).
+
+---
+
+## ADR-015 — Keep `babel-plugin-react-compiler` enabled with `reactCompiler: true`
+
+**Status.** Accepted.
+
+**Date.** 2026-05-05.
+
+**Context.**
+React 19.2 + React Compiler 1.0 are stable as of Next.js 16. The compiler auto-memoises client components, removing the need for manual `useMemo` / `useCallback` in interactive client islands (e.g. `ConflictModal`, `ChatComposer`, `FileTable`, `ChatBubble`). Build time is higher — the compiler relies on Babel — but Next.js's SWC analyser limits the Babel pass to files with JSX/Hooks. Source: [`../05-tech-spikes/spike-react-19-compiler.md`](../05-tech-spikes/spike-react-19-compiler.md).
+
+**Options.**
+1. Disable the compiler (`reactCompiler: false`). Faster builds; manual memoisation everywhere.
+2. Enable in `compilationMode: 'annotation'` (only components with `'use memo'` opt in). Halfway house; defeats the purpose for an app of this scale.
+3. Enable in `compilationMode: 'infer'` (the default when `reactCompiler: true` is set). Compiler decides per-component.
+
+**Decision.**
+Option 3 — `next.config.ts` keeps `reactCompiler: true`. The compilation mode is the default `'infer'`. `babel-plugin-react-compiler@1.0.0` stays in `devDependencies`.
+
+**Consequences.**
+- Client components in FYP2 do not pre-emptively add `useMemo` / `useCallback`. If profiling reveals a render hotspot the compiler missed, manual memoisation is added deliberately at that point.
+- "Rules of React" violations (mutating props, conditional hooks, reading refs during render) silently de-optimise individual components. `eslint-plugin-react-compiler` (bundled with `eslint-config-next`) is the safety net and runs in CI.
+- Build cost is acceptable at FYP scale (~80 components expected). Re-evaluation triggers: `next build` exceeds 60 s on `ubuntu-latest`, or a client component shows wrong behaviour traceable to the compiler.
+- Escape hatch: a component can opt out with `'use no memo'` at the top. Use only when a specific bug requires it.
+- React Server Components are out of scope — the compiler only memoises client component renders.
+
+**References.**
+- [`../05-tech-spikes/spike-react-19-compiler.md`](../05-tech-spikes/spike-react-19-compiler.md).
+- `node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/reactCompiler.md`.
+- `node_modules/next/dist/docs/01-app/02-guides/upgrading/version-16.md` (§ React Compiler Support).
+- https://react.dev/learn/react-compiler/introduction.
+
+---
+
 <!-- Append new ADRs below using the template in 98-templates/adr-template.md. Do not edit accepted ADRs in place; supersede them. -->
