@@ -315,4 +315,30 @@ export const ui: Dictionary = {
   "admin.departments.noDepts": { ms: "Tiada jabatan.", en: "No departments." },
   "admin.departments.codePlaceholder": { ms: "cth: curriculum", en: "e.g. curriculum" },
   "admin.departments.namePlaceholder": { ms: "cth: Kurikulum", en: "e.g. Curriculum" },
+
+  "staff.dashboardTitle": { ms: "Papan Pemuka Kakitangan", en: "Staff Dashboard" },
+  "staff.department": { ms: "Jabatan", en: "Department" },
+  "staff.departmentEvents": { ms: "Acara Jabatan", en: "Department Events" },
+  "staff.memos": { ms: "Memo", en: "Memos" },
+  "staff.takwim": { ms: "Takwim", en: "Calendar" },
+  "staff.shortcutCreateEvent": { ms: "Cipta Acara", en: "Create Event" },
+  "staff.shortcutMyEvents": { ms: "Acara Saya", en: "My Events" },
+  "staff.shortcutTakwim": { ms: "Takwim", en: "Calendar" },
+  "staff.shortcutNews": { ms: "Berita", en: "News" },
+  "staff.emptyEvents": { ms: "Tiada acara jabatan.", en: "No department events." },
+  "staff.emptyEventsDesc": {
+    ms: "Acara yang anda cipta atau acara jabatan anda akan dipaparkan di sini.",
+    en: "Events you create or events from your department will appear here.",
+  },
+  "staff.emptyMemos": { ms: "Tiada memo.", en: "No memos." },
+  "staff.emptyMemosDesc": {
+    ms: "Memo dalaman untuk kakitangan akan dipaparkan di sini.",
+    en: "Internal memos for staff will appear here.",
+  },
+  "staff.emptyTakwim": { ms: "Tiada acara bulan ini.", en: "No events this month." },
+  "staff.emptyTakwimDesc": {
+    ms: "Jadual acara sekolah untuk bulan ini akan dipaparkan di sini.",
+    en: "School events for this month will appear here.",
+  },
+  "staff.pinned": { ms: "Disematkan", en: "Pinned" },
 };
