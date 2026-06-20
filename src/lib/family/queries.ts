@@ -2,7 +2,6 @@ import { and, eq } from "drizzle-orm";
 
 import { familyLink, studentProfile, users } from "@/db/schema";
 import { db } from "@/lib/db";
-import { writeAudit } from "@/lib/pdpa/audit";
 
 export type ChildSummary = {
   studentUserId: string;
@@ -74,13 +73,6 @@ export async function viewChildForParent({
     .limit(1);
 
   if (!row) return null;
-
-  await writeAudit({
-    actorUserId: parentUserId,
-    action: "student.view",
-    resourceType: "student",
-    resourceId: studentUserId,
-  });
 
   return {
     studentUserId,
