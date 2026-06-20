@@ -50,21 +50,23 @@ export default async function StaffEventsPage() {
       ) : (
         <ul className="mt-8 flex flex-col gap-3">
           {events.map((ev) => (
-            <li
-              key={ev.id}
-              className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3"
-            >
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium text-card-foreground">{ev.title}</span>
-                <span className="text-xs text-muted-foreground">
-                  {ev.startAt.toLocaleDateString("en-MY", { timeZone: "Asia/Kuala_Lumpur" })}
-                  {ev.occurrenceCount > 1
-                    ? ` · ${ev.occurrenceCount} ${t("event.occurrences")}`
-                    : null}
-                  {ev.roomName ? ` · ${ev.roomName}` : null}
-                </span>
-              </div>
-              <Badge variant={STATUS_VARIANTS[ev.status]}>{t(STATUS_KEYS[ev.status])}</Badge>
+            <li key={ev.id}>
+              <Link
+                href={`/staff/events/${ev.id}`}
+                className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/40"
+              >
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium text-card-foreground">{ev.title}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {ev.startAt.toLocaleDateString("en-MY", { timeZone: "Asia/Kuala_Lumpur" })}
+                    {ev.occurrenceCount > 1
+                      ? ` · ${ev.occurrenceCount} ${t("event.occurrences")}`
+                      : null}
+                    {ev.roomName ? ` · ${ev.roomName}` : null}
+                  </span>
+                </div>
+                <Badge variant={STATUS_VARIANTS[ev.status]}>{t(STATUS_KEYS[ev.status])}</Badge>
+              </Link>
             </li>
           ))}
         </ul>
