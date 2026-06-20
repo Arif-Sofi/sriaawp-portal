@@ -8,6 +8,8 @@ import { ui } from "@/lib/i18n/dictionary";
 import { getLocale } from "@/lib/i18n/server";
 import { hasPermission, requireUser } from "@/lib/rbac";
 
+import { RecordView } from "./_components/record-view";
+
 type Props = {
   params: Promise<{ studentId: string }>;
 };
@@ -30,6 +32,7 @@ export default async function ChildDetailPage({ params }: Props) {
 
   return (
     <div className="py-6">
+      <RecordView studentUserId={studentId} />
       <Card className="mx-auto max-w-lg">
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
