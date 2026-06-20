@@ -187,6 +187,38 @@ export async function publishPendingEvent(
   });
 
   revalidatePath("/staff/events");
+  revalidatePath(`/staff/events/${id}`);
+  revalidatePath("/takwim");
+  return ok(undefined);
+}
+
+export async function updateEvent(
+  id: string,
+  input: { title: string; description?: string },
+): Promise<ActionResult<void>> {
+  const user = await requirePermission("event:edit");
+
+  const title = input.title.trim();
+  if (!title) return fail("Title is required", { fieldErrors: { title: "Title is required" } });
+
+  const [row] = await db
+    .update(event)
+    .set({ title, description: input.description?.trim() || null, updatedAt: new Date() })
+    .where(eq(event.id, id))
+    .returning({ id: event.id });
+
+  if (!row) return fail("Event not found", { code: "NOT_FOUND" });
+
+  await writeAudit({
+    actorUserId: user.id,
+    action: "event.update",
+    resourceType: "event",
+    resourceId: id,
+    metadata: null,
+  });
+
+  revalidatePath("/staff/events");
+  revalidatePath(`/staff/events/${id}`);
   revalidatePath("/takwim");
   return ok(undefined);
 }
