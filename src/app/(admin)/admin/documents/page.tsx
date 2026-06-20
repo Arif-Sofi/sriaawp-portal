@@ -1,3 +1,4 @@
+import { ReplaceVersionButton } from "@/components/shared/replace-version-button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { FileTable } from "@/components/ui/file-table";
 import { listDepartments } from "@/lib/admin/queries";
@@ -5,7 +6,7 @@ import { listAllDocuments } from "@/lib/documents/queries";
 import { translate } from "@/lib/i18n";
 import { ui } from "@/lib/i18n/dictionary";
 import { getLocale } from "@/lib/i18n/server";
-import { requirePermission } from "@/lib/rbac";
+import { hasPermission, requirePermission } from "@/lib/rbac";
 import { DeleteButton } from "./_components/delete-button";
 import { UploadForm } from "./_components/upload-form";
 
@@ -17,9 +18,10 @@ function formatBytes(bytes: number | null): string {
 }
 
 export default async function AdminDocumentsPage() {
-  const [, locale] = await Promise.all([requirePermission("document:upload"), getLocale()]);
+  const [user, locale] = await Promise.all([requirePermission("document:upload"), getLocale()]);
   const [docs, departments] = await Promise.all([listAllDocuments(), listDepartments()]);
   const t = (key: string) => translate(ui, key, locale);
+  const canEdit = hasPermission(user, "document:edit");
 
   const rows = docs.map((doc) => ({
     id: doc.id,
@@ -52,7 +54,12 @@ export default async function AdminDocumentsPage() {
       <FileTable
         files={rows}
         emptyLabel={t("documents.empty")}
-        actions={(file) => <DeleteButton documentId={file.id} locale={locale} />}
+        actions={(file) => (
+          <div className="flex items-center gap-2">
+            {canEdit ? <ReplaceVersionButton documentId={file.id} locale={locale} /> : null}
+            <DeleteButton documentId={file.id} locale={locale} />
+          </div>
+        )}
       />
     </main>
   );
