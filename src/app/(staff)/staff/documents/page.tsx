@@ -1,3 +1,4 @@
+import { ReplaceVersionButton } from "@/components/shared/replace-version-button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { FileTable } from "@/components/ui/file-table";
 import { listDepartments } from "@/lib/admin/queries";
@@ -21,6 +22,7 @@ export default async function StaffDocumentsPage() {
   const [docs, departments] = await Promise.all([listVisibleDocuments(user), listDepartments()]);
   const t = (key: string) => translate(ui, key, locale);
   const canDelete = hasPermission(user, "document:delete");
+  const canEdit = hasPermission(user, "document:edit");
 
   const rows = docs.map((doc) => ({
     id: doc.id,
@@ -53,9 +55,12 @@ export default async function StaffDocumentsPage() {
       <FileTable
         files={rows}
         emptyLabel={t("documents.empty")}
-        actions={
-          canDelete ? (file) => <DeleteButton documentId={file.id} locale={locale} /> : undefined
-        }
+        actions={(file) => (
+          <div className="flex items-center gap-2">
+            {canEdit ? <ReplaceVersionButton documentId={file.id} locale={locale} /> : null}
+            {canDelete ? <DeleteButton documentId={file.id} locale={locale} /> : null}
+          </div>
+        )}
       />
     </main>
   );
