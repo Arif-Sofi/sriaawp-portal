@@ -28,7 +28,7 @@ type LinkFamilyFormProps = {
   locale: Locale;
 };
 
-type FormState = ActionResult<unknown> | null;
+type FormState = ActionResult<{ created: boolean }> | null;
 
 const RELATIONSHIPS = ["father", "mother", "guardian"] as const;
 
@@ -122,7 +122,11 @@ export function LinkFamilyForm({ parents, students, locale }: LinkFamilyFormProp
       {!state?.ok && state?.error ? (
         <p className="text-sm text-destructive">{state.error}</p>
       ) : null}
-      {state?.ok ? <p className="text-sm text-success-foreground">Link created.</p> : null}
+      {state?.ok ? (
+        <p className="text-sm text-success-foreground">
+          {state.data.created ? t("admin.family.linkCreated") : t("admin.family.alreadyLinked")}
+        </p>
+      ) : null}
 
       <Button type="submit" disabled={pending || !parentId || !studentId || !relationship}>
         {t("admin.family.link")}
