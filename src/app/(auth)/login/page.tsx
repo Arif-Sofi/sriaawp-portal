@@ -1,4 +1,7 @@
-import { signIn } from "@/lib/auth";
+import { redirect } from "next/navigation";
+
+import { auth, signIn } from "@/lib/auth";
+import { dashboardPathForRoles } from "@/lib/navigation";
 
 import { LoginForm } from "./login-form";
 
@@ -7,8 +10,11 @@ interface LoginPageProps {
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const session = await auth();
+  if (session?.user) redirect(dashboardPathForRoles(session.user.roles));
+
   const params = await searchParams;
-  const callbackUrl = params.callbackUrl ?? "/";
+  const callbackUrl = params.callbackUrl ?? "/portal";
   const errorCode = params.error;
 
   async function sendMagicLink(formData: FormData) {

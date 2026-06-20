@@ -1,18 +1,25 @@
 import Link from "next/link";
 
-import { buttonClasses } from "@/components/ui/button";
+import { Button, buttonClasses } from "@/components/ui/button";
 import { PortalHeader } from "@/components/portal/portal-header";
 import { PortalSearch } from "@/components/portal/portal-search";
+import { signOutAction } from "@/app/actions/auth";
 import { translate, type Locale } from "@/lib/i18n";
 import { ui } from "@/lib/i18n/dictionary";
 
 import { LanguageToggle } from "./language-toggle";
 
-type SiteHeaderProps = {
-  locale: Locale;
+type SiteHeaderUser = {
+  name: string;
+  dashboardHref: string | null;
 };
 
-export function SiteHeader({ locale }: SiteHeaderProps) {
+type SiteHeaderProps = {
+  locale: Locale;
+  user?: SiteHeaderUser | null;
+};
+
+export function SiteHeader({ locale, user }: SiteHeaderProps) {
   const t = (key: string) => translate(ui, key, locale);
 
   const brand = (
@@ -21,7 +28,30 @@ export function SiteHeader({ locale }: SiteHeaderProps) {
     </Link>
   );
 
-  const right = (
+  const right = user ? (
+    <>
+      {user.name ? <span className="text-sm text-primary-foreground/80">{user.name}</span> : null}
+      {user.dashboardHref ? (
+        <Link
+          href={user.dashboardHref}
+          className={buttonClasses({ variant: "secondary", size: "sm" })}
+        >
+          {t("nav.dashboard")}
+        </Link>
+      ) : null}
+      <LanguageToggle locale={locale} />
+      <form action={signOutAction}>
+        <Button
+          type="submit"
+          variant="ghost"
+          size="sm"
+          className="text-primary-foreground hover:bg-primary-foreground/10"
+        >
+          {t("nav.logout")}
+        </Button>
+      </form>
+    </>
+  ) : (
     <>
       <LanguageToggle locale={locale} />
       <Link href="/login" className={buttonClasses({ variant: "secondary", size: "sm" })}>
