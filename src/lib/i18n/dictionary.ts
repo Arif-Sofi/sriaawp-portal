@@ -157,6 +157,9 @@ export const ui: Dictionary = {
   },
   "takwim.room": { ms: "Bilik", en: "Room" },
   "takwim.exam": { ms: "Peperiksaan", en: "Exam" },
+  "takwim.blackouts": { ms: "Tempoh Sekatan", en: "Blackout Periods" },
+  "takwim.blackoutHard": { ms: "Keras", en: "Hard" },
+  "takwim.blackoutSoft": { ms: "Lembut", en: "Soft" },
 
   "event.pageTitle": { ms: "Acara Saya", en: "My Events" },
   "event.createNew": { ms: "Cipta Acara Baharu", en: "Create New Event" },
@@ -315,6 +318,8 @@ export const ui: Dictionary = {
   "admin.family.relationship": { ms: "Hubungan", en: "Relationship" },
   "admin.family.primaryContact": { ms: "Kenalan Utama", en: "Primary Contact" },
   "admin.family.link": { ms: "Buat Pautan", en: "Create Link" },
+  "admin.family.linkCreated": { ms: "Pautan dicipta.", en: "Link created." },
+  "admin.family.alreadyLinked": { ms: "Pautan sudah wujud.", en: "Already linked." },
   "admin.family.selectParent": { ms: "Pilih ibu bapa...", en: "Select parent..." },
   "admin.family.selectStudent": { ms: "Pilih pelajar...", en: "Select student..." },
   "admin.family.selectRelationship": { ms: "Pilih hubungan...", en: "Select relationship..." },
