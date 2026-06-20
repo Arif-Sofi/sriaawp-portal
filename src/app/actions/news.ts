@@ -1,6 +1,7 @@
 "use server";
 
 import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 
 import { news } from "@/db/schema";
 import { db } from "@/lib/db";
@@ -71,6 +72,8 @@ export async function createNews(input: NewsInput): Promise<ActionResult<NewsRow
       resourceId: row.id,
     });
 
+    revalidatePath("/admin/news");
+    revalidatePath("/news");
     return ok(row);
   } catch (error) {
     if (isUniqueViolation(error)) {
@@ -116,6 +119,8 @@ export async function updateNews(
       resourceId: id,
     });
 
+    revalidatePath("/admin/news");
+    revalidatePath("/news");
     return ok(row);
   } catch (error) {
     if (isUniqueViolation(error)) {
@@ -144,6 +149,8 @@ export async function publishNews(id: string): Promise<ActionResult<NewsRow>> {
     resourceId: id,
   });
 
+  revalidatePath("/admin/news");
+  revalidatePath("/news");
   return ok(row);
 }
 
@@ -160,5 +167,7 @@ export async function deleteNews(id: string): Promise<ActionResult<void>> {
     resourceId: id,
   });
 
+  revalidatePath("/admin/news");
+  revalidatePath("/news");
   return ok(undefined);
 }

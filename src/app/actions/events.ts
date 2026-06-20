@@ -1,6 +1,7 @@
 "use server";
 
 import { and, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 
 import { event, eventAudience, eventOccurrence } from "@/db/schema";
 import { db } from "@/lib/db";
@@ -152,6 +153,8 @@ export async function createEvent(input: CreateEventInput): Promise<ActionResult
     const outcome: "PUBLISHED" | "PENDING_REVIEW" =
       eventStatus === "published" ? "PUBLISHED" : "PENDING_REVIEW";
 
+    revalidatePath("/staff/events");
+    revalidatePath("/takwim");
     return ok<CreateEventData>({
       eventId: newEvent.id,
       status: eventStatus,
@@ -183,5 +186,7 @@ export async function publishPendingEvent(
     metadata: reason ? { reason } : null,
   });
 
+  revalidatePath("/staff/events");
+  revalidatePath("/takwim");
   return ok(undefined);
 }
