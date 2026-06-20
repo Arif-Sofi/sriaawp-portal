@@ -74,6 +74,11 @@ export default async function StaffDashboardPage() {
       icon: <Icon name="file" />,
     },
     {
+      href: "/staff/documents",
+      label: t("nav.documents"),
+      icon: <Icon name="file" />,
+    },
+    {
       href: "/takwim",
       label: t("staff.shortcutTakwim"),
       icon: <Icon name="calendar" />,
