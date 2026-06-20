@@ -204,6 +204,23 @@ export const ui: Dictionary = {
   },
   "event.occurrences": { ms: "kejadian", en: "occurrences" },
   "event.viewEvents": { ms: "Lihat Acara", en: "View Events" },
+  "event.backToEvents": { ms: "Kembali ke senarai acara", en: "Back to events" },
+  "event.statusLabel": { ms: "Status", en: "Status" },
+  "event.noDescription": { ms: "Tiada penerangan.", en: "No description." },
+  "event.publish": { ms: "Terbitkan acara", en: "Publish event" },
+  "event.publishing": { ms: "Menerbitkan...", en: "Publishing..." },
+  "event.publishHint": {
+    ms: "Acara ini menunggu semakan. Terbitkannya untuk memaparkannya pada takwim awam.",
+    en: "This event is pending review. Publish it to show it on the public calendar.",
+  },
+  "event.editDetails": { ms: "Sunting butiran", en: "Edit details" },
+  "event.editHint": {
+    ms: "Hanya tajuk dan penerangan boleh disunting di sini. Untuk menjadualkan semula, batalkan dan cipta semula acara.",
+    en: "Only the title and description can be edited here. To reschedule, cancel and recreate the event.",
+  },
+  "event.saveDetails": { ms: "Simpan butiran", en: "Save details" },
+  "event.savingDetails": { ms: "Menyimpan...", en: "Saving..." },
+  "event.detailsSaved": { ms: "Butiran dikemas kini.", en: "Details updated." },
 
   "parent.dashboardTitle": { ms: "Papan Pemuka Ibu Bapa", en: "Parent Dashboard" },
   "parent.myChildren": { ms: "Anak-anak", en: "My Children" },
