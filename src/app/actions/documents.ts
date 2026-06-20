@@ -1,6 +1,7 @@
 "use server";
 
 import { eq, max } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 
 import { document, documentVersion } from "@/db/schema";
 import { db } from "@/lib/db";
@@ -128,6 +129,8 @@ export async function uploadDocument(
     return docRow.id;
   });
 
+  revalidatePath("/admin/documents");
+  revalidatePath("/staff/documents");
   return ok({ documentId });
 }
 
@@ -194,6 +197,8 @@ export async function replaceVersion(
     return versionRow.id;
   });
 
+  revalidatePath("/admin/documents");
+  revalidatePath("/staff/documents");
   return ok({ versionId });
 }
 
@@ -211,5 +216,7 @@ export async function deleteDocument(id: string): Promise<ActionResult<void>> {
     resourceId: id,
   });
 
+  revalidatePath("/admin/documents");
+  revalidatePath("/staff/documents");
   return ok(undefined);
 }

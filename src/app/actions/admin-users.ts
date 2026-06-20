@@ -1,6 +1,7 @@
 "use server";
 
 import { and, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 
 import {
   departments,
@@ -95,6 +96,8 @@ export async function assignRole(input: AssignRoleInput): Promise<ActionResult<v
     metadata: { roleCode: input.roleCode, scopeType, scopeId },
   });
 
+  revalidatePath(`/admin/users/${input.userId}`);
+  revalidatePath("/admin/users");
   return ok(undefined);
 }
 
@@ -130,6 +133,8 @@ export async function revokeRole(input: RevokeRoleInput): Promise<ActionResult<v
     metadata: { roleCode: input.roleCode, scopeId: input.scopeId },
   });
 
+  revalidatePath(`/admin/users/${input.userId}`);
+  revalidatePath("/admin/users");
   return ok(undefined);
 }
 
@@ -161,6 +166,8 @@ export async function approveParent(requestId: string): Promise<ActionResult<voi
       tx,
     );
 
+    revalidatePath("/admin/verify");
+    revalidatePath("/admin/users");
     return ok(undefined);
   });
 }
@@ -203,6 +210,7 @@ export async function rejectParent(input: RejectParentInput): Promise<ActionResu
       tx,
     );
 
+    revalidatePath("/admin/verify");
     return ok(undefined);
   });
 }
@@ -231,6 +239,7 @@ export async function linkFamily(input: LinkFamilyInput): Promise<ActionResult<v
     },
   });
 
+  revalidatePath("/admin/family-links");
   return ok(undefined);
 }
 
@@ -337,6 +346,7 @@ export async function bulkLinkFamilyCsv(csvText: string): Promise<ActionResult<B
     metadata: { created, skipped, errorCount: errors.length },
   });
 
+  revalidatePath("/admin/family-links");
   return ok({ created, skipped, errors });
 }
 
@@ -364,6 +374,7 @@ export async function createDepartment(input: CreateDepartmentInput): Promise<Ac
       metadata: { code: input.code.trim(), name: input.name.trim() },
     });
 
+    revalidatePath("/admin/departments");
     return ok(undefined);
   } catch (error) {
     if (isUniqueViolation(error)) {
