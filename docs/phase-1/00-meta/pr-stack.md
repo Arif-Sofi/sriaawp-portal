@@ -86,8 +86,10 @@ Build train (bottom = earliest dependency):
 | PR | Branch | Base | Issue | Status |
 |----|--------|------|-------|--------|
 | #90 | `spike/supabase-auth-ssr` | `docs/rebaseline-2026-06` | #11 | Open. Supabase Auth `@supabase/ssr` spike (additive; Auth.js stays live). |
+| #91 | `spike/supabase-rls` | `spike/supabase-auth-ssr` | #12 | Open. Sample RLS policy + reusable cross-tenant block test helper. |
+| #92 | `spike/ai-sdk-gemini` | `spike/supabase-rls` | #14 | In progress. Vercel AI SDK + Gemini streaming + tool-calling + image-link envelope. |
 
-Next planned (dependency order): #12 RLS spike -> #14 AI SDK spike -> #13 pgvector spike -> #79 auth cut-over (LEAVE OPEN) -> #28/#26 DB -> #80/#81 AI -> #82/#83 engagement -> #84/#85 Facebook (mock) -> #58/#30-#34 auth follow-ups. See `docs/agent/next-session-prompt.md`.
+Next planned (dependency order): #13 pgvector spike -> #79 auth cut-over (LEAVE OPEN) -> #28/#26 DB -> #80/#81 AI -> #82/#83 engagement -> #84/#85 Facebook (mock) -> #58/#30-#34 auth follow-ups. See `docs/agent/next-session-prompt.md`.
 
 ## Closed / merged PRs
 
