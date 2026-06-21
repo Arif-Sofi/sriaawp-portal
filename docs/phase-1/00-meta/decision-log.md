@@ -510,4 +510,73 @@ PR #25 implements the Auth.js v5 magic-link login + Drizzle adapter wiring laid 
 
 ---
 
+## ADR-018 — Replace Auth.js v5 with Supabase Auth for identity and sessions
+
+**Status.** Proposed.
+
+**Date.** 2026-06-21.
+
+**Context.**
+The 2026-06-20 stakeholder meeting directed the project to drop Auth.js and adopt Supabase's native authentication ("it handles the role for us, like Cognito"). This realigns the build with the project's own source documents, which the Auth.js choice had quietly diverged from: the thesis Ch 3 states *"Supabase also provides its own authentication service known as Supabase Auth ... RLS is combined with Supabase Auth to enable end-to-end security from the browser to the database"* and the Ch 4 ERD describes *"PROFILES connected to Supabase Auth's auth_users"*; the SRS lists *"Login with Google"* (UC01 AF1) and a Design Constraint that the system *"uses Supabase to hash and secure"* credentials. Auth.js v5 shipped in PR #25 ([ADR-016](#adr-016--drizzle-orm-as-the-schema-source-of-truth-drizzle-kit-for-generation-manual-sql-for-rls), [ADR-017](#adr-017--pin-next-auth500-beta30-postgres-postgresjs-driver-and-resend-for-magic-link-delivery)) but was never named by the thesis or SRS. Note ADR-002/003 are status `Proposed` (revisable in place); ADR-016/017 are `Accepted` (must be superseded).
+
+**Options.**
+1. Keep Auth.js v5 (status quo). Contradicts the thesis + SRS and keeps a churning beta dependency (`next-auth@5.0.0-beta.x`, risk R-03).
+2. Supabase Auth via `@supabase/ssr`. Identity in the managed `auth.users` schema; the app keeps a `public.profiles` row FK'd 1:1 to `auth.uid()`; magic-link/OTP and Google OAuth handled by Supabase; cookie/session handled by `@supabase/ssr` in `proxy.ts`.
+3. Hybrid (Auth.js for the app, Supabase only for the database). Rejected — two session systems, the worst of both.
+
+**Decision.**
+Option 2 — Supabase Auth is the identity and session provider. Supersedes ADR-017; revises ADR-002, ADR-012, ADR-016; the enforcement and revocation model is decided separately in [ADR-019](#adr-019--enforcement-and-revocation-under-supabase-auth). Reopens P0-Q6.
+
+**Consequences.**
+- `@supabase/ssr` is added (not currently installed); `@supabase/supabase-js` (already a dependency, currently unused) becomes load-bearing; `next-auth` and `@auth/drizzle-adapter` are removed.
+- Identity moves to Supabase-managed `auth.users`. The app keeps `public.profiles` FK'd 1:1 to `auth.users.id` (uuid), provisioned by an `on auth.users insert` trigger. **The existing uuid PK is reused**, so every downstream FK (`user_role.user_id`, `*_profile.user_id`, `family_link`, `parent_verification_request.user_id`) survives without a data migration. The Auth.js adapter tables (`accounts`, `sessions`, `verification_token`, `authenticators`) are dropped from the app schema.
+- **Drizzle survives** as ORM + migration generator ([ADR-016](#adr-016--drizzle-orm-as-the-schema-source-of-truth-drizzle-kit-for-generation-manual-sql-for-rls)); only its `@auth/drizzle-adapter` clause and adapter-table overrides are dropped.
+- The RBAC engine (`roles`, `permissions`, `role_permission`, `user_role` tables; the permission catalogue; `hasPermission`) is auth-vendor-agnostic and **does not change**. This corrects the stakeholder belief: Supabase Auth (like Cognito groups) gives authentication, JWT issuance, magic-link/OTP, OAuth, and a place to attach claims — it does **not** ship an RBAC matrix, a permission catalogue, scoped permissions, or the [ADR-011](#adr-011--admin-only-parentstudent-linking-with-csv-bulk--per-family-edits) parent-verify flow, all of which remain hand-built.
+- Magic-link/OTP delivery moves to Supabase Auth. Resend may be retained as Supabase's **custom SMTP sender** to preserve BM-first bilingual branding.
+- PR #25 auth code is superseded: `src/lib/auth.ts`, `src/types/next-auth.d.ts`, `src/app/api/auth/[...nextauth]/route.ts`, and the `proxy.ts` body are replaced. `src/lib/rbac.ts` + `session-context.ts` keep their function signatures (`getCurrentUser` / `requireUser` / `hasPermission` / `requirePermission`) and only swap internals to read the Supabase session — confining churn to ~5 lib files rather than the ~48 consumers. Migration `0000` is superseded for the adapter tables.
+- PDPA ([ADR-008](#adr-008--pdpa-2010-aligned-design-from-day-1)): identity PII now lives in Supabase `auth.users`; the DSAR delete/export path and DPO data map must include it (deletion cascades across `auth.users` via the Supabase admin API **and** the app tables).
+- A new spike (`spike-supabase-auth-ssr-app-router.md`) is required before the migration PR; it supersedes `spike-authjs-v5-app-router.md`.
+
+**References.**
+- [`../source-docs/thesis.md`](../../source-docs/thesis.md) Ch 3 (Backend Development), Ch 4 (Database Design ERD); [`../source-docs/srs.md`](../../source-docs/srs.md) UC01, Design Constraints.
+- [`log-book.md`](./log-book.md) 2026-06-20 entry; [`auth-and-session-design.md`](../03-design/auth-and-session-design.md).
+- Supersedes [ADR-017](#adr-017--pin-next-auth500-beta30-postgres-postgresjs-driver-and-resend-for-magic-link-delivery); revises [ADR-002](#adr-002--application-layer-is-the-source-of-truth-for-rbac-supabase-rls-mirrors-as-defense-in-depth), [ADR-012](#adr-012--use-proxyts-not-middlewarets-on-the-nodejs-runtime-for-session-refresh-and-auth-gating), [ADR-016](#adr-016--drizzle-orm-as-the-schema-source-of-truth-drizzle-kit-for-generation-manual-sql-for-rls); see [ADR-019](#adr-019--enforcement-and-revocation-under-supabase-auth).
+
+---
+
+## ADR-019 — Enforcement and revocation under Supabase Auth
+
+**Status.** Proposed.
+
+**Date.** 2026-06-21.
+
+**Context.**
+[ADR-018](#adr-018--replace-authjs-v5-with-supabase-auth-for-identity-and-sessions) adopts Supabase Auth, which is JWT-based (access token + refresh token). This collides with [ADR-003](#adr-003--database-sessions-not-jwt) (database sessions, chosen for **instant** revocation) and forces three rulings: (a) where role/permission resolution happens, (b) how a revoked role propagates without DB sessions, and (c) whether the app connects through the **service-role key** (RLS bypassed — today's model, per `rls-policy-design.md` notes 2–3) or the **authenticated/anon key** (RLS live). ADR-002 and ADR-003 are status `Proposed`, so they are revised in place here. A critical correction: adopting Supabase Auth does **not** by itself "light up" the already-authored RLS — the policies in `0001_rls_policies.sql` are bypassed because the app connects via the service-role key, and they stay bypassed until the connection strategy itself changes.
+
+**Options (enforcement point).**
+1. RLS-primary: connect with the authenticated key; JWT claims drive RLS as the gate. Rejected for v1 — bundles a connection-strategy reversal that breaks the current public-news/Takwim serving model (served via service-role with **no** `anon` policy) and would re-architect every public and authenticated read.
+2. App-layer-primary (reaffirm [ADR-002](#adr-002--application-layer-is-the-source-of-truth-for-rbac-supabase-rls-mirrors-as-defense-in-depth)): server-side `hasPermission` per request against the DB tables; a Supabase **custom access-token hook** injects a *lightweight* claim set so RLS becomes correct (a live defense-in-depth net) for any future authenticated-key path.
+3. Claims-only: put the full permission set in the JWT. Rejected — the 38-code catalogue bloats the token and every permission change needs a token re-mint.
+
+**Options (revocation).**
+1. Accept up-to-TTL staleness everywhere. Rejected — discards ADR-003's intent.
+2. Short access-token TTL + per-request app-layer resolution. Chosen.
+
+**Decision.**
+Enforcement: Option 2 — **app layer stays the source of truth ([ADR-002](#adr-002--application-layer-is-the-source-of-truth-for-rbac-supabase-rls-mirrors-as-defense-in-depth) stands)**. A custom access-token hook (Postgres function `public.add_rbac_claims`) injects role codes + status + dept ids into the JWT `app_metadata`. The app **keeps the service-role connection for v1**; the authenticated-key + RLS-primary migration is explicitly **deferred to v2**.
+Revocation: Option 2 — a short access-token TTL (target 5–15 min) plus per-request permission resolution from the DB tables (which an admin role change updates immediately), and a Supabase admin session-revoke call on role change to drop refresh tokens.
+
+**Consequences.**
+- Revises [ADR-003](#adr-003--database-sessions-not-jwt): the database-session *mechanism* is replaced, but its instant-revocation *intent* is preserved — app-layer-gated routes revoke effectively instantly (the next request re-resolves permissions), and only claim-based RLS checks are bounded by the token TTL. The "delete `sessions` WHERE userId" rule becomes "call the Supabase admin session-revoke + rely on per-request resolution".
+- Revises [ADR-002](#adr-002--application-layer-is-the-source-of-truth-for-rbac-supabase-rls-mirrors-as-defense-in-depth): reaffirmed app-layer-primary, and adds the JWT-claim-shape contract (`role_codes`, `status`, `dept_ids` in `app_metadata`). `0001_rls_policies.sql` needs **no SQL change** and becomes correct (it resolves real `auth.uid()`/`auth.jwt()` values) — but only *enforces* on the authenticated-key path, which v1 does not use. Do not claim "RLS is now live" until the v2 connection migration lands.
+- The PENDING_VERIFICATION status ([ADR-011](#adr-011--admin-only-parentstudent-linking-with-csv-bulk--per-family-edits)) moves from the Auth.js session callback into the claims hook (status rides the JWT) or is resolved server-side per request.
+- Adds a **revocation-propagation-latency NFR** to master-plan §11.3: `<= access-token TTL` for any claim-based path, effectively immediate for app-layer-gated paths — replacing the lost "instant" guarantee.
+- The `spike-supabase-auth-ssr-app-router.md` spike must prove the claims hook, the short-TTL refresh-in-`proxy.ts` flow, and the role-change revoke on Next.js 16 (Node runtime).
+
+**References.**
+- `rls-policy-design.md` notes 2–3 (service-role bypass; public reads served via service-role with no `anon` policy).
+- Revises [ADR-002](#adr-002--application-layer-is-the-source-of-truth-for-rbac-supabase-rls-mirrors-as-defense-in-depth), [ADR-003](#adr-003--database-sessions-not-jwt); depends on [ADR-018](#adr-018--replace-authjs-v5-with-supabase-auth-for-identity-and-sessions); reopens P0-Q6.
+
+---
+
 <!-- Append new ADRs below using the template in 98-templates/adr-template.md. Do not edit accepted ADRs in place; supersede them. -->
