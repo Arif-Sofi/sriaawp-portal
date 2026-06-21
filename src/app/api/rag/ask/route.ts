@@ -49,6 +49,12 @@ const GET_NEWS_SYSTEM =
 const MANUAL_RAG_SYSTEM =
   "Answer from the retrieved manual section provided as context. Cite the section.";
 
+const SESSION_HEADER = "x-session-id";
+
+function sessionHeader(sessionId: string): Record<string, string> {
+  return { [SESSION_HEADER]: sessionId };
+}
+
 function lastUserText(messages: UIMessage[]): string {
   const lastUser = [...messages].reverse().find((message) => message.role === "user");
   if (!lastUser) return "";
@@ -104,7 +110,7 @@ async function inArticleResponse(
       });
     },
   });
-  return result.toUIMessageStreamResponse<AiUiMessage>();
+  return result.toUIMessageStreamResponse<AiUiMessage>({ headers: sessionHeader(sessionId) });
 }
 
 async function getNewsResponse(
@@ -132,7 +138,7 @@ async function getNewsResponse(
       if (trace) await recordGetNewsRetrieval({ userId: user.id, trace, latencyMs });
     },
   });
-  return result.toUIMessageStreamResponse<AiUiMessage>();
+  return result.toUIMessageStreamResponse<AiUiMessage>({ headers: sessionHeader(sessionId) });
 }
 
 export async function POST(request: Request): Promise<Response> {

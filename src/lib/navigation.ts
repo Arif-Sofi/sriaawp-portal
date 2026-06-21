@@ -38,6 +38,7 @@ export const ADMIN_NAV: NavItemDef[] = [
     permission: "user:link_family",
   },
   { href: "/admin/verify", labelKey: "nav.verify", icon: "bell", permission: "user:verify_parent" },
+  { href: "/assistant", labelKey: "nav.assistant", icon: "chat" },
 ];
 
 export const STAFF_NAV: NavItemDef[] = [
@@ -56,6 +57,7 @@ export const STAFF_NAV: NavItemDef[] = [
   },
   { href: "/takwim", labelKey: "nav.takwim", icon: "calendar" },
   { href: "/news", labelKey: "nav.news", icon: "news" },
+  { href: "/assistant", labelKey: "nav.assistant", icon: "chat" },
 ];
 
 export const PARENT_NAV: NavItemDef[] = [
@@ -63,6 +65,7 @@ export const PARENT_NAV: NavItemDef[] = [
   { href: "/parent/children", labelKey: "nav.children", icon: "users" },
   { href: "/takwim", labelKey: "nav.takwim", icon: "calendar" },
   { href: "/news", labelKey: "nav.news", icon: "news" },
+  { href: "/assistant", labelKey: "nav.assistant", icon: "chat" },
 ];
 
 export function dashboardPathForRoles(roles: RoleCode[]): string {

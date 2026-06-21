@@ -15,6 +15,25 @@ export const ui: Dictionary = {
   "nav.verify": { ms: "Pengesahan", en: "Verification" },
   "nav.events": { ms: "Acara", en: "Events" },
   "nav.children": { ms: "Anak", en: "Children" },
+  "nav.assistant": { ms: "Pembantu AI", en: "AI Assistant" },
+
+  "assistant.title": { ms: "Pembantu AI", en: "AI Assistant" },
+  "assistant.newsDesc": {
+    ms: "Tanya tentang berita sekolah. Pembantu hanya merujuk berita yang anda dibenarkan lihat.",
+    en: "Ask about school news. The assistant only references news you are allowed to see.",
+  },
+  "assistant.askArticle": { ms: "Tanya AI tentang artikel ini", en: "Ask AI about this article" },
+  "assistant.placeholder": { ms: "Taip soalan anda...", en: "Type your question..." },
+  "assistant.send": { ms: "Hantar", en: "Send" },
+  "assistant.sending": { ms: "Menghantar...", en: "Sending..." },
+  "assistant.empty": {
+    ms: "Mulakan perbualan dengan menanyakan soalan.",
+    en: "Start the conversation by asking a question.",
+  },
+  "assistant.error": {
+    ms: "Maaf, permintaan gagal. Sila cuba lagi.",
+    en: "Sorry, the request failed. Please try again.",
+  },
 
   "home.heroTitle": {
     ms: "Selamat Datang ke Portal SRIAAWP",
