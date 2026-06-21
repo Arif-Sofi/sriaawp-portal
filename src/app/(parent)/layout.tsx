@@ -10,7 +10,12 @@ export default async function ParentLayout({ children }: { children: React.React
 
   const nav = (
     <>
-      <AuthHeader locale={locale} userName={name} homeHref="/parent/dashboard" />
+      <AuthHeader
+        locale={locale}
+        userName={name}
+        homeHref="/parent/dashboard"
+        userId={session?.user?.id}
+      />
       {session?.user ? <RoleNav area="parent" user={session.user} locale={locale} /> : null}
     </>
   );

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 
-const PROTECTED_PREFIXES = ["/parent", "/staff", "/admin", "/assistant"];
+const PROTECTED_PREFIXES = ["/parent", "/staff", "/admin", "/assistant", "/notifications"];
 
 export const proxy = auth((req) => {
   const { pathname } = req.nextUrl;

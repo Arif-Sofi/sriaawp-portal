@@ -10,7 +10,12 @@ export default async function StaffLayout({ children }: { children: React.ReactN
 
   const nav = (
     <>
-      <AuthHeader locale={locale} userName={name} homeHref="/staff/dashboard" />
+      <AuthHeader
+        locale={locale}
+        userName={name}
+        homeHref="/staff/dashboard"
+        userId={session?.user?.id}
+      />
       {session?.user ? <RoleNav area="staff" user={session.user} locale={locale} /> : null}
     </>
   );
