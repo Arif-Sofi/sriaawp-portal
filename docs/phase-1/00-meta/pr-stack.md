@@ -103,7 +103,8 @@ Feature train (off `spike/pgvector-gemini`):
 | #97 | `feat/ai-modes-1-2` | `feat/manual-corpus` | #80 | none | Open. Hardened /api/rag/ask (audience guard, server-side Mode-1 fetch, caller-scoped get_news) + persistence + assistant UI + cross-visibility test. Live runs gated on Gemini key. |
 | #98 | `feat/ai-mode-3` | `feat/ai-modes-1-2` | #81 | none | Open. Mode-3 manual RAG: re-ingestable manual pipeline + flat-scan retrieval + tau_refuse refusal + Supabase Storage split (resolves #89). Real manual pending PM (#88). Live runs gated on Gemini key. |
 | #99 | `feat/engagement-tables` | `feat/ai-mode-3` | #82 | 0009 | Open. news_reaction/news_comment(one-level trigger)/notification + app_setting(allow_student_comments=false) + 6 perm codes (student none) + inherited-visibility RLS. |
-| #100 | `feat/engagement-ui` | `feat/engagement-tables` | #83 | none | In progress. Engagement UI + gated/audited actions (react/comment/reply/edit/delete/report/moderate) + ACTIVE-parent/student-toggle/rate-limit + dept-scoped moderation + notification loop + cross-visibility test. |
+| #100 | `feat/engagement-ui` | `feat/engagement-tables` | #83 | none | Open. Engagement UI + gated/audited actions (react/comment/reply/edit/delete/report/moderate) + ACTIVE-parent/student-toggle/rate-limit + dept-scoped moderation + notification loop + cross-visibility test. |
+| #101 | `spike/facebook-graph-api` | `feat/engagement-ui` | #84 | none | In progress. FB feasibility write-up + env-selected FacebookClient interface + MockFacebookClient (no real Meta) + R-13..R-16 re-rate. |
 
 Next planned (dependency order): #28 -> #26 (manual corpus, 0008) -> #80 (AI modes 1+2) -> #81 (mode 3 + Supabase Storage = resolves #89) -> #82 (engagement tables, 0009) -> #83 (engagement UI + #87 toggle) -> #84/#85 Facebook mock (0010). Auth follow-ups #58/#30-#34 gated on #79 review/merge. See `docs/agent/next-session-prompt.md`.
 
