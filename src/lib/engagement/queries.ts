@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
 
-import { newsComment, newsReaction, notification, users } from "@/db/schema";
+import { appSetting, newsComment, newsReaction, notification, users } from "@/db/schema";
 import { getVisibleNewsById } from "@/lib/content/queries";
 import { db } from "@/lib/db";
 import type { AuthedUser } from "@/lib/rbac";
@@ -117,6 +117,15 @@ async function callerHasReacted(newsId: string, callerId: string): Promise<boole
     )
     .limit(1);
   return Boolean(row);
+}
+
+export async function studentCommentsAllowed(): Promise<boolean> {
+  const [row] = await db
+    .select({ value: appSetting.value })
+    .from(appSetting)
+    .where(eq(appSetting.key, "allow_student_comments"))
+    .limit(1);
+  return row?.value === true;
 }
 
 export type NotificationRow = {

@@ -3,9 +3,10 @@
 import { and, eq, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { appSetting, news, newsComment, newsReaction, notification } from "@/db/schema";
+import { news, newsComment, newsReaction, notification } from "@/db/schema";
 import { getVisibleNewsById } from "@/lib/content/queries";
 import { db } from "@/lib/db";
+import { studentCommentsAllowed } from "@/lib/engagement/queries";
 import { writeAudit } from "@/lib/pdpa/audit";
 import { hasPermission, requirePermission } from "@/lib/rbac";
 import type { AuthedUser } from "@/lib/rbac";
@@ -35,15 +36,6 @@ function requireActive(user: Pick<AuthedUser, "status">): ActionResult<never> | 
     });
   }
   return null;
-}
-
-async function studentCommentsAllowed(): Promise<boolean> {
-  const [row] = await db
-    .select({ value: appSetting.value })
-    .from(appSetting)
-    .where(eq(appSetting.key, "allow_student_comments"))
-    .limit(1);
-  return row?.value === true;
 }
 
 // Students may write ONLY when the admin toggle is on (resolved #87). Default OFF.
