@@ -73,6 +73,10 @@ After each merge, the next branch in the stack is rebased onto the new `main` an
 5. **PR description** declares its position in the stack ("Stacked PR — review after #N, merge after #N") and lists merge order so a reviewer landing on this PR cold knows the dependency chain.
 6. **Stop opening new stacks** when the active stack is 4 deep. Beyond that, reviewer fatigue dominates.
 
+## 2026-06-21 update — re-baseline docs branch
+
+This tracker predates the FYP2 frontend train; the live stack tip is now well beyond PR #25. The 2026-06-20 re-baseline lands on its own branch `docs/rebaseline-2026-06`, **based on the current stack tip** (not `main`, which does not yet carry `docs/phase-1/`). It is docs-only (ADR-018..023, P0 v2, MoSCoW, Supabase-auth design, risk + source-doc reconciliation) and stacks above the source-docs sync. Title prefix: `docs(phase-1):`.
+
 ## Closed / merged PRs
 
 (none yet)

@@ -25,6 +25,14 @@
 | 2026-05-05 | v1 | `05-tech-spikes/spike-tailwind-v4.md` | Author | Foundation spike report on Tailwind v4 — `@theme` tokens + PostCSS pipeline. |
 | 2026-05-05 | v1 | `03-design/folder-structure-spec.md` | Author | Target `src/` tree for FYP2; locks role-named segment nesting + `proxy.ts` location. |
 | 2026-05-05 | v1 | `98-templates/*` | Author | Reusable doc templates (FR, use case, NFR, ADR, spike, test case). |
+| 2026-06-20 | v2 | `00-meta/decision-log.md` ADR-018..023 | Author | Six re-baseline ADRs: Supabase Auth (018), enforcement/revocation (019), agentic 3-mode AI (020), news engagement (021), Facebook integration (022), revised MoSCoW (023). |
+| 2026-06-20 | v2 | `01-overview/p0-decisions-to-lock.md` | Author | Reopened Q3/Q4/Q6; added Q16-Q19; v2 sign-off block requiring supervisor + Pengetua countersignature. |
+| 2026-06-20 | v2 | `00-meta/log-book.md` | Author | 2026-06-20 stakeholder re-baseline meeting (four change requests). |
+| 2026-06-21 | v2 | `03-design/auth-and-session-design.md` | Author | Re-authored for Supabase Auth (ADR-018/019); Auth.js v1 archived to `99-archive/auth-and-session-design-v1.md`. |
+| 2026-06-20 | v1 | `01-overview/moscow-scope.md` | Author | New MoSCoW scope baseline (original scope + C1-C4) per ADR-023. |
+| 2026-06-20 | v1 | `00-meta/source-doc-reconciliation-2026-06.md` | Author | Edit list realigning the SRS + thesis Word sources with the re-baseline. |
+| 2026-06-20 | v2 | `00-meta/risk-register.md` | Author | Re-rated R-11; added R-13..R-18 (Facebook, auth migration, minor-UGC). |
+| 2026-06-20 | v2 | `03-design/{database-schema.sql.md,rls-policy-design.md}` | Author | Re-baseline banners pointing to ADR-018/019 (full rewrite deferred to the migration PR). |
 
 ---
 

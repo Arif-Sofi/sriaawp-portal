@@ -415,7 +415,7 @@ These are the blocking decisions. **Without P0, no schema can be drawn. Without 
 3. **RAG audience.** **LOCKED** — Admin + Teacher + Parent. Student excluded in v1 (PDPA risk on under-13 + LLM interaction). See [ADR-009](./00-meta/decision-log.md).
 4. **Document ACL granularity.** **TENTATIVE — per-document** with `acl_key` denormalised onto each chunk for fast pre-filter. Confirm against real document samples once school provides them.
 5. **PDPA-2010 + minor consent stance.** **LOCKED** — PDPA-aligned design from day 1: Privacy Notice in BM+EN, parental consent for under-13, IC numbers column-encrypted, audit log on every student-data access, DSAR flow, designated DPO, breach notification ≤ 72 h. See [ADR-008](./00-meta/decision-log.md).
-6. **Session strategy.** **LOCKED** — database sessions in Supabase (instant revocation). See [ADR-003](./00-meta/decision-log.md).
+6. **Session strategy.** **REOPENED 2026-06-20** — Supabase Auth (JWT) replaces DB sessions; instant-revocation intent re-solved via short token TTL + per-request app-layer resolution. See ADR-018 / ADR-019 (supersede ADR-003) and P0 v2.
 
 ### P1 — UI-blocking (locked 2026-05-05)
 
@@ -611,8 +611,8 @@ These artefacts touch >1 file and must stay in lockstep. Single source of truth 
 | 運用・保守性 | Mean time to deploy | ≤ 15 min via Vercel preview → prod |
 | 移行性 | Schema migrations | Drizzle/Prisma up+down, zero-downtime |
 | 移行性 | Initial bulk import | CSV (users/students), Drive folder dump (docs) |
-| セキュリティ | Auth | Auth.js v5 + DB sessions |
-| セキュリティ | RBAC enforcement | App layer + Supabase RLS (defense in depth) |
+| セキュリティ | Auth | Supabase Auth (JWT, short TTL) + app-layer RBAC; see ADR-018/019 (2026-06-20 re-baseline) |
+| セキュリティ | RBAC enforcement | App layer (source of truth); RLS as defense in depth (bypassed in v1 service-role, live on v2 authenticated-key — ADR-019) |
 | セキュリティ | PDPA-2010 | Parental consent for under-13; DSAR flow; breach notification ≤ 72 h |
 | セキュリティ | Encryption | TLS 1.3 in transit, AES-256 at rest, IC numbers column-encrypted |
 | セキュリティ | OWASP Top 10 | ZAP baseline + npm audit before UAT |
