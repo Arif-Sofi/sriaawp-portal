@@ -34,6 +34,8 @@ export const PERMISSIONS = [
   { code: "news:comment:delete_own", label: "Soft-delete one's own comment" },
   { code: "news:comment:moderate", label: "Hide or delete any comment within scope" },
   { code: "news:comment:report", label: "Report a comment for moderator review" },
+  { code: "news:sync_facebook", label: "Sync a public news post to the Facebook Page" },
+  { code: "admin:settings:manage", label: "Manage global admin settings and toggles" },
 ] as const;
 
 export const ROLES = [
