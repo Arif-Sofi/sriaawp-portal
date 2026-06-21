@@ -4,8 +4,7 @@ import { fbSyncLink, idempotency, news, outbox } from "@/db/schema";
 import { db } from "@/lib/db";
 import { getFacebookClient } from "@/lib/facebook";
 import type { FacebookClient } from "@/lib/facebook";
-import { FACEBOOK_PUBLISH_TOPIC } from "@/app/actions/facebook";
-import { facebookSyncEnabled } from "@/lib/facebook/settings";
+import { FACEBOOK_PUBLISH_TOPIC, facebookSyncEnabled } from "@/lib/facebook/settings";
 import { computeContentHash, mapOutboundPost } from "@/lib/facebook/outbound-content";
 import { writeAudit } from "@/lib/pdpa/audit";
 

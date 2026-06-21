@@ -6,13 +6,15 @@ import { revalidatePath } from "next/cache";
 import { appSetting, fbSyncLink, news, outbox } from "@/db/schema";
 import { db } from "@/lib/db";
 import { computeContentHash, type OutboundNews } from "@/lib/facebook/outbound-content";
-import { FACEBOOK_SYNC_ENABLED_KEY, facebookSyncEnabled } from "@/lib/facebook/settings";
+import {
+  FACEBOOK_PUBLISH_TOPIC,
+  FACEBOOK_SYNC_ENABLED_KEY,
+  facebookSyncEnabled,
+} from "@/lib/facebook/settings";
 import { writeAudit } from "@/lib/pdpa/audit";
 import { requirePermission } from "@/lib/rbac";
 import { fail, ok } from "@/lib/utils/result";
 import type { ActionResult } from "@/lib/utils/result";
-
-export const FACEBOOK_PUBLISH_TOPIC = "facebook.publish";
 
 // PUBLIC-ONLY GUARD (load-bearing, ADR-022 / R-04). A POSITIVE allow-list: a row crosses to the
 // public Page ONLY when it is visibility='public' AND published. internal/role_list are rejected
