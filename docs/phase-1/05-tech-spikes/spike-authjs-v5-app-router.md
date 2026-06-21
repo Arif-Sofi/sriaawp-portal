@@ -1,3 +1,5 @@
+> SUPERSEDED by spike-supabase-auth-ssr-app-router.md (2026-06-21 re-baseline, ADR-018). Retained for history; do not implement.
+
 # Spike — Auth.js v5 (`next-auth@5.0.0-beta.30`) on Next.js 16 App Router
 
 **Status.** Done. Implementation landed in PR #25 (`feat/auth-rbac`). The "Hello-world reproduced" and "Pitfalls encountered" sections at the bottom of this file capture the wired-up file paths and the deviations the implementation forced.
