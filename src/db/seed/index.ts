@@ -164,6 +164,12 @@ async function upsertAppSettings(tx: Tx): Promise<void> {
     .insert(appSetting)
     .values({ key: "allow_student_comments", value: false })
     .onConflictDoNothing({ target: appSetting.key });
+  // Global kill-switch for the Facebook outbound bridge (ADR-022, #85). Default OFF: an admin
+  // must explicitly enable sync before any post can be enqueued or the worker can drain.
+  await tx
+    .insert(appSetting)
+    .values({ key: "facebook_sync_enabled", value: false })
+    .onConflictDoNothing({ target: appSetting.key });
 }
 
 async function upsertAdmin(tx: Tx): Promise<string> {
