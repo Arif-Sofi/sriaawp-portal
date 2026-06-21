@@ -6,6 +6,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import {
+  appSetting,
   blackoutWindow,
   departments,
   document,
@@ -57,6 +58,7 @@ async function seed() {
     const roleIds = await upsertRoles(tx);
     const permissionIds = await upsertPermissions(tx);
     await upsertRolePermissions(tx, roleIds, permissionIds);
+    await upsertAppSettings(tx);
 
     const adminUserId = await upsertAdmin(tx);
     await assignRole(tx, adminUserId, roleIds.admin, "global", GLOBAL_SCOPE_SENTINEL);
@@ -153,6 +155,15 @@ async function upsertRolePermissions(
         .onConflictDoNothing();
     }
   }
+}
+
+// Default-OFF: students hold none of the engagement codes; an admin flips this on to let
+// students comment/react. The #83 call site reads app_setting.allow_student_comments (ADR-021, #87).
+async function upsertAppSettings(tx: Tx): Promise<void> {
+  await tx
+    .insert(appSetting)
+    .values({ key: "allow_student_comments", value: false })
+    .onConflictDoNothing({ target: appSetting.key });
 }
 
 async function upsertAdmin(tx: Tx): Promise<string> {
