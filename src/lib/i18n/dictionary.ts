@@ -474,6 +474,28 @@ export const ui: Dictionary = {
   "admin.news.created": { ms: "Berita dicipta.", en: "News post created." },
   "admin.news.editTitle": { ms: "Sunting berita", en: "Edit news post" },
 
+  "admin.fb.sync": { ms: "Segerak ke Facebook", en: "Sync to Facebook" },
+  "admin.fb.syncing": { ms: "Menyegerak...", en: "Syncing..." },
+  "admin.fb.statusPending": { ms: "Dalam baris gilir", en: "Queued" },
+  "admin.fb.statusSynced": { ms: "Disegerak", en: "Synced" },
+  "admin.fb.statusFailed": { ms: "Gagal", en: "Failed" },
+  "admin.fb.unchanged": { ms: "Tiada perubahan", en: "No changes" },
+  "admin.fb.settingsTitle": { ms: "Segerak Facebook", en: "Facebook Sync" },
+  "admin.fb.settingsDesc": {
+    ms: "Suis induk untuk menerbitkan berita awam ke Halaman Facebook sekolah.",
+    en: "Global switch for publishing public news to the school Facebook Page.",
+  },
+  "admin.fb.enabled": { ms: "Didayakan", en: "Enabled" },
+  "admin.fb.disabled": { ms: "Dimatikan", en: "Disabled" },
+  "admin.fb.enable": { ms: "Dayakan", en: "Enable" },
+  "admin.fb.disable": { ms: "Matikan", en: "Disable" },
+
+  "admin.settings.title": { ms: "Tetapan", en: "Settings" },
+  "admin.settings.desc": {
+    ms: "Tetapan pentadbiran global untuk portal.",
+    en: "Global administrative settings for the portal.",
+  },
+
   "admin.memo.title": { ms: "Pengurusan Memo", en: "Memo Management" },
   "admin.memo.desc": {
     ms: "Cipta dan urus memo dalaman untuk staf dan ibu bapa.",
