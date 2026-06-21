@@ -43,6 +43,20 @@ export async function getVisibleNewsBySlug(slug: string, user: Pick<AuthedUser, 
   return hasMatchingRole ? row : null;
 }
 
+export async function getVisibleNewsById(id: string, user: Pick<AuthedUser, "roles"> | null) {
+  const [row] = await db.select().from(news).where(eq(news.id, id)).limit(1);
+  if (!row) return null;
+  if (!row.publishedAt) return null;
+
+  if (row.visibility === "public") return row;
+  if (!user) return null;
+
+  if (row.visibility === "internal") return row;
+
+  const hasMatchingRole = row.visibilityRoles?.some((r) => (user.roles as string[]).includes(r));
+  return hasMatchingRole ? row : null;
+}
+
 export async function listAllNews() {
   return db.select().from(news).orderBy(desc(news.updatedAt));
 }
