@@ -88,7 +88,10 @@ Build train (bottom = earliest dependency):
 | #90 | `spike/supabase-auth-ssr` | `docs/rebaseline-2026-06` | #11 | Open. Supabase Auth `@supabase/ssr` spike (additive; Auth.js stays live). |
 | #91 | `spike/supabase-rls` | `spike/supabase-auth-ssr` | #12 | Open. Sample RLS policy + reusable cross-tenant block test helper. |
 | #92 | `spike/ai-sdk-gemini` | `spike/supabase-rls` | #14 | Open. Vercel AI SDK + Gemini streaming + tool-calling + image-link envelope. |
-| #93 | `spike/pgvector-gemini` | `spike/ai-sdk-gemini` | #13 | In progress. pgvector flat-scan over the manual + embedding pipeline + tau_refuse. |
+| #93 | `spike/pgvector-gemini` | `spike/ai-sdk-gemini` | #13 | Open. pgvector flat-scan over the manual + embedding pipeline + tau_refuse. |
+| #94 | `feat/supabase-auth-cutover` | `spike/pgvector-gemini` | #79 | In progress. Auth.js -> Supabase Auth cut-over. **LEFT OPEN for human review** (only ticket rewriting shipped PR #25 code). |
+
+Phase 0 (spikes #11/#12/#14/#13) COMPLETE: PRs #90-#93, all four issues closed. Cross-cutting flag: `GOOGLE_GENERATIVE_AI_API_KEY` is present-but-empty in `.env.local`, so live LLM/embedding runs (#13 tuning, #80/#81) await the human's Gemini key; pipelines built + typecheck-proven ahead of it.
 
 Next planned (dependency order): #79 auth cut-over (LEAVE OPEN) -> #28/#26 DB -> #80/#81 AI -> #82/#83 engagement -> #84/#85 Facebook (mock) -> #58/#30-#34 auth follow-ups. See `docs/agent/next-session-prompt.md`.
 
