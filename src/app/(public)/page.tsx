@@ -7,7 +7,7 @@ import { AppShortcuts } from "@/components/portal/app-shortcuts";
 import { AppTile } from "@/components/portal/app-tile";
 import { PortalSection } from "@/components/portal/portal-section";
 import { PromoBanner } from "@/components/portal/promo-banner";
-import { auth } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/rbac";
 import { listPublicOccurrences } from "@/lib/calendar/queries";
 import { listPublishedPublicNews } from "@/lib/content/queries";
 import { translate } from "@/lib/i18n";
@@ -16,7 +16,7 @@ import { getLocale } from "@/lib/i18n/server";
 import { dashboardPathForRoles } from "@/lib/navigation";
 
 export default async function PublicLandingPage() {
-  const [session, locale] = await Promise.all([auth(), getLocale()]);
+  const [user, locale] = await Promise.all([getCurrentUser(), getLocale()]);
   const t = (key: string) => translate(ui, key, locale);
 
   const now = new Date();
@@ -29,7 +29,7 @@ export default async function PublicLandingPage() {
   const topNews = allNews.slice(0, 3);
   const upcoming = occurrences.slice(0, 4);
 
-  const dashPath = session?.user ? dashboardPathForRoles(session.user.roles) : null;
+  const dashPath = user ? dashboardPathForRoles(user.roles) : null;
   const dash = dashPath && dashPath !== "/" ? dashPath : null;
 
   const lastShortcut = dash

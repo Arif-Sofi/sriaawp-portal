@@ -7,7 +7,7 @@ import { listPublishedPublicNews, listVisibleNews } from "@/lib/content/queries"
 import { translate } from "@/lib/i18n";
 import { ui } from "@/lib/i18n/dictionary";
 import { getLocale } from "@/lib/i18n/server";
-import { auth } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/rbac";
 
 const VISIBILITY_LABEL: Record<string, string> = {
   public: "Public",
@@ -18,11 +18,9 @@ const VISIBILITY_LABEL: Record<string, string> = {
 export default async function NewsPage() {
   const locale = await getLocale();
   const t = (key: string) => translate(ui, key, locale);
-  const session = await auth();
+  const user = await getCurrentUser();
 
-  const items = session?.user
-    ? await listVisibleNews(session.user)
-    : await listPublishedPublicNews();
+  const items = user ? await listVisibleNews(user) : await listPublishedPublicNews();
 
   return (
     <div className="py-6">
@@ -54,7 +52,7 @@ export default async function NewsPage() {
                       </p>
                     ) : null}
                   </div>
-                  {session?.user ? (
+                  {user ? (
                     <Badge variant="neutral" className="shrink-0">
                       {VISIBILITY_LABEL[item.visibility] ?? item.visibility}
                     </Badge>

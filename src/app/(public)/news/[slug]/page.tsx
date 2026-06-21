@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { getVisibleNewsBySlug } from "@/lib/content/queries";
-import { auth } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/rbac";
 import { getLocale } from "@/lib/i18n/server";
 
 type Props = {
@@ -11,8 +11,7 @@ type Props = {
 export default async function NewsArticlePage({ params }: Props) {
   const { slug } = await params;
   const locale = await getLocale();
-  const session = await auth();
-  const user = session?.user ?? null;
+  const user = await getCurrentUser();
 
   const article = await getVisibleNewsBySlug(slug, user);
   if (!article) notFound();
