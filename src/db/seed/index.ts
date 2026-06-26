@@ -51,6 +51,47 @@ const icEncryptionKey = process.env.IC_ENCRYPTION_KEY ?? "dev-only-ic-key-do-not
 const client = postgres(databaseUrl, { max: 1 });
 const db = drizzle(client);
 
+async function createAuthIdentity(tx: Tx, email: string) {
+  const existing = await tx.execute<{ id: string }>(
+    sql`SELECT id FROM auth.users WHERE email = ${email} LIMIT 1`
+  );
+  const existingUser = (existing as unknown as { id: string }[])[0];
+  if (existingUser) {
+    return existingUser.id;
+  }
+
+  // Fallback check to see if the user exists in public.users (e.g. from previous runs)
+  // to avoid violating the unique constraint on email.
+  const [existingPublicUser] = await tx
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+
+  const userId = existingPublicUser ? existingPublicUser.id : crypto.randomUUID();
+  
+  // Use raw SQL to insert into the auth schema
+  await tx.execute(sql`
+    INSERT INTO auth.users (
+      id, instance_id, email, encrypted_password, 
+      email_confirmed_at, created_at, updated_at, 
+      raw_app_meta_data, raw_user_meta_data, aud, role
+    ) VALUES (
+      ${userId},
+      '00000000-0000-0000-0000-000000000000',
+      ${email},
+      crypt('password123', gen_salt('bf')), -- Simple dummy password for dev
+      NOW(), NOW(), NOW(),
+      '{"provider": "email", "providers": ["email"]}',
+      '{}',
+      'authenticated',
+      'authenticated'
+    )
+  `);
+  
+  return userId;
+}
+
 async function seed() {
   await db.transaction(async (tx) => {
     const departmentIds = await upsertDepartments(tx);
@@ -156,9 +197,12 @@ async function upsertRolePermissions(
 }
 
 async function upsertAdmin(tx: Tx): Promise<string> {
+  const authId = await createAuthIdentity(tx, ADMIN_EMAIL);
+
   const [row] = await tx
     .insert(users)
     .values({
+      id: authId,
       name: ADMIN_NAME,
       email: ADMIN_EMAIL,
       emailVerified: new Date(),
@@ -194,10 +238,11 @@ async function upsertTeachers(
     const email = `teacher.${teacherIndex + 1}@sriaawp.test`;
     const name = faker.person.fullName();
     const deptId = departmentIds[teacherIndex % departmentIds.length];
+    const authId = await createAuthIdentity(tx, email);
 
     const [userRow] = await tx
       .insert(users)
-      .values({ name, email, emailVerified: new Date() })
+      .values({ id: authId, name, email, emailVerified: new Date() })
       .onConflictDoUpdate({
         target: users.email,
         set: { name, updatedAt: new Date() },
@@ -228,10 +273,11 @@ async function upsertParents(tx: Tx): Promise<string[]> {
   for (let parentIndex = 0; parentIndex < PARENT_COUNT; parentIndex += 1) {
     const email = `parent.${parentIndex + 1}@sriaawp.test`;
     const name = faker.person.fullName();
+    const authId = await createAuthIdentity(tx, email);
 
     const [userRow] = await tx
       .insert(users)
-      .values({ name, email, emailVerified: new Date() })
+      .values({ id: authId, name, email, emailVerified: new Date() })
       .onConflictDoUpdate({
         target: users.email,
         set: { name, updatedAt: new Date() },
@@ -266,10 +312,11 @@ async function upsertStudents(tx: Tx): Promise<string[]> {
     const name = faker.person.fullName();
     const dob = faker.date.between({ from: "2014-01-01", to: "2018-12-31" });
     const syntheticIc = `${dob.toISOString().slice(2, 10).replace(/-/g, "")}-14-${faker.string.numeric(4)}`;
+    const authId = await createAuthIdentity(tx, email);
 
     const [userRow] = await tx
       .insert(users)
-      .values({ name, email, emailVerified: new Date() })
+      .values({ id: authId, name, email, emailVerified: new Date() })
       .onConflictDoUpdate({
         target: users.email,
         set: { name, updatedAt: new Date() },
