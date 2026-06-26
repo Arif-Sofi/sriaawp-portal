@@ -12,8 +12,36 @@
     {
       "idx": 1,
       "version": "7",
+      "when": 1779000000000,
+      "tag": "0001_rls_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
       "when": 1780149844097,
       "tag": "0002_content_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781000000000,
+      "tag": "0003_content_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782000000000,
+      "tag": "0004_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783000000000,
+      "tag": "0005_documents",
       "breakpoints": true
     }
   ]

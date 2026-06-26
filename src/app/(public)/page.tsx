@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { AppShortcuts } from "@/components/portal/app-shortcuts";
@@ -7,6 +8,8 @@ import { AppTile } from "@/components/portal/app-tile";
 import { PortalSection } from "@/components/portal/portal-section";
 import { PromoBanner } from "@/components/portal/promo-banner";
 import { auth } from "@/lib/auth";
+import { listPublicOccurrences } from "@/lib/calendar/queries";
+import { listPublishedPublicNews } from "@/lib/content/queries";
 import { translate } from "@/lib/i18n";
 import { ui } from "@/lib/i18n/dictionary";
 import { getLocale } from "@/lib/i18n/server";
@@ -15,6 +18,16 @@ import { dashboardPathForRoles } from "@/lib/navigation";
 export default async function PublicLandingPage() {
   const [session, locale] = await Promise.all([auth(), getLocale()]);
   const t = (key: string) => translate(ui, key, locale);
+
+  const now = new Date();
+  const fromISO = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const toISO = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+  const [allNews, occurrences] = await Promise.all([
+    listPublishedPublicNews(),
+    listPublicOccurrences({ fromISO, toISO }),
+  ]);
+  const topNews = allNews.slice(0, 3);
+  const upcoming = occurrences.slice(0, 4);
 
   const dashPath = session?.user ? dashboardPathForRoles(session.user.roles) : null;
   const dash = dashPath && dashPath !== "/" ? dashPath : null;
@@ -62,11 +75,34 @@ export default async function PublicLandingPage() {
               </Link>
             }
           >
-            <EmptyState
-              title={t("empty.noNews")}
-              description={t("empty.noNewsDesc")}
-              className="border-0 bg-transparent py-6"
-            />
+            {topNews.length === 0 ? (
+              <EmptyState
+                title={t("empty.noNews")}
+                description={t("empty.noNewsDesc")}
+                className="border-0 bg-transparent py-6"
+              />
+            ) : (
+              <ul className="divide-y divide-border">
+                {topNews.map((item) => (
+                  <li key={item.id} className="py-3">
+                    <Link
+                      href={`/news/${item.slug}`}
+                      className="text-sm font-medium text-primary hover:underline"
+                    >
+                      {item.title}
+                    </Link>
+                    {item.publishedAt ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {new Date(item.publishedAt).toLocaleDateString(
+                          locale === "ms" ? "ms-MY" : "en-GB",
+                          { timeZone: "Asia/Kuala_Lumpur" },
+                        )}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
           </PortalSection>
 
           <PortalSection
@@ -77,11 +113,31 @@ export default async function PublicLandingPage() {
               </Link>
             }
           >
-            <EmptyState
-              title={t("empty.noTakwim")}
-              description={t("empty.noTakwimDesc")}
-              className="border-0 bg-transparent py-6"
-            />
+            {upcoming.length === 0 ? (
+              <EmptyState
+                title={t("empty.noTakwim")}
+                description={t("empty.noTakwimDesc")}
+                className="border-0 bg-transparent py-6"
+              />
+            ) : (
+              <ul className="divide-y divide-border">
+                {upcoming.map((o) => (
+                  <li key={o.occurrenceId} className="flex flex-col gap-1 py-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">{o.title}</span>
+                      {o.priority === "exam" ? (
+                        <Badge variant="destructive">{t("takwim.exam")}</Badge>
+                      ) : null}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {o.startAt.toLocaleDateString(locale === "ms" ? "ms-MY" : "en-GB", {
+                        timeZone: "Asia/Kuala_Lumpur",
+                      })}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </PortalSection>
 
           <PortalSection title={t("section.quickLinks")}>

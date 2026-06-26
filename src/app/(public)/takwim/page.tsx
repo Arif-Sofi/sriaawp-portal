@@ -6,7 +6,11 @@ import { auth } from "@/lib/auth";
 import { translate } from "@/lib/i18n";
 import { ui } from "@/lib/i18n/dictionary";
 import { getLocale } from "@/lib/i18n/server";
-import { listPublicOccurrences, listVisibleOccurrences } from "@/lib/calendar/queries";
+import {
+  listBlackouts,
+  listPublicOccurrences,
+  listVisibleOccurrences,
+} from "@/lib/calendar/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +57,8 @@ export default async function TakwimPage() {
       })
     : await listPublicOccurrences({ fromISO, toISO });
 
+  const blackouts = await listBlackouts({ fromISO, toISO });
+
   const calendarEvents = occurrences.map((o) => ({
     dateISO: o.startAt.toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" }),
     label: o.title,
@@ -92,6 +98,26 @@ export default async function TakwimPage() {
           </ul>
         )}
       </PortalSection>
+
+      {blackouts.length > 0 ? (
+        <PortalSection title={t("takwim.blackouts")}>
+          <ul className="divide-y divide-border">
+            {blackouts.map((b) => (
+              <li key={b.id} className="flex flex-col gap-1 py-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">{b.title}</span>
+                  <Badge variant={b.isHard ? "destructive" : "warning"}>
+                    {b.isHard ? t("takwim.blackoutHard") : t("takwim.blackoutSoft")}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {formatDateTime(b.startAt, locale)} — {formatDateTime(b.endAt, locale)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </PortalSection>
+      ) : null}
     </div>
   );
 }

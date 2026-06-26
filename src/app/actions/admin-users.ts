@@ -215,10 +215,12 @@ export async function rejectParent(input: RejectParentInput): Promise<ActionResu
   });
 }
 
-export async function linkFamily(input: LinkFamilyInput): Promise<ActionResult<void>> {
+export async function linkFamily(
+  input: LinkFamilyInput,
+): Promise<ActionResult<{ created: boolean }>> {
   const caller = await requirePermission("user:link_family");
 
-  await db
+  const inserted = await db
     .insert(familyLink)
     .values({
       parentUserId: input.parentUserId,
@@ -226,21 +228,26 @@ export async function linkFamily(input: LinkFamilyInput): Promise<ActionResult<v
       relationship: input.relationship,
       primaryContact: input.primaryContact ?? false,
     })
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ parentUserId: familyLink.parentUserId });
 
-  await writeAudit({
-    actorUserId: caller.id,
-    action: "user.link_family",
-    resourceType: "family_link",
-    resourceId: input.parentUserId,
-    metadata: {
-      studentUserId: input.studentUserId,
-      relationship: input.relationship,
-    },
-  });
+  const created = inserted.length > 0;
+
+  if (created) {
+    await writeAudit({
+      actorUserId: caller.id,
+      action: "user.link_family",
+      resourceType: "family_link",
+      resourceId: input.parentUserId,
+      metadata: {
+        studentUserId: input.studentUserId,
+        relationship: input.relationship,
+      },
+    });
+  }
 
   revalidatePath("/admin/family-links");
-  return ok(undefined);
+  return ok({ created });
 }
 
 type CsvRow = {
