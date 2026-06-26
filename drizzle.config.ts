@@ -1,4 +1,7 @@
+import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
+
+config({ path: ".env.local" });
 
 const databaseUrl =
   process.env.DATABASE_URL ?? "postgres://postgres:postgres@127.0.0.1:54322/postgres";
