@@ -44,15 +44,6 @@ describe.skipIf(!liveDbAvailable)("RLS — cross-tenant block (anon key, RLS act
 
     expect(data ?? []).toEqual([]);
   });
-
-  test("anon client cannot SELECT any row from `sessions`", async () => {
-    const { createClient } = await import("@supabase/supabase-js");
-    const anon = createClient(rlsEnv!.url, rlsEnv!.anonKey);
-
-    const { data } = await anon.from("sessions").select("sessionToken").limit(1);
-
-    expect(data ?? []).toEqual([]);
-  });
 });
 
 describe.skipIf(!serviceRoleAvailable)(
