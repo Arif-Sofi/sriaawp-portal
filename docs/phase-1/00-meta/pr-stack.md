@@ -102,7 +102,8 @@ Feature train (off `spike/pgvector-gemini`):
 | PR | Branch | Base | Issue | Migration | Status |
 |----|--------|------|-------|-----------|--------|
 | #95 | `feat/operational-tables` | `spike/pgvector-gemini` | #28 | 0007 | Open. chat_session/chat_message(mode,news_id)/retrieval_log(kind)/outbox/idempotency. audit_log already shipped (PR3) — not recreated. |
-| #96 | `feat/manual-corpus` | `feat/operational-tables` | #26 | 0008 | In progress. manual_chunk + manual_embedding(vector(1536), image_urls); pgvector extension; NO HNSW (flat scan). DM document_chunk (0005) untouched (v2). |
+| #96 | `feat/manual-corpus` | `feat/operational-tables` | #26 | 0008 | Open. manual_chunk + manual_embedding(vector(1536), image_urls); pgvector extension; NO HNSW (flat scan). DM document_chunk (0005) untouched (v2). |
+| #97 | `feat/ai-modes-1-2` | `feat/manual-corpus` | #80 | none | In progress. Hardened /api/rag/ask (audience guard, server-side Mode-1 fetch, caller-scoped get_news) + persistence + assistant UI + cross-visibility test. Live runs gated on Gemini key. |
 
 Next planned (dependency order): #28 -> #26 (manual corpus, 0008) -> #80 (AI modes 1+2) -> #81 (mode 3 + Supabase Storage = resolves #89) -> #82 (engagement tables, 0009) -> #83 (engagement UI + #87 toggle) -> #84/#85 Facebook mock (0010). Auth follow-ups #58/#30-#34 gated on #79 review/merge. See `docs/agent/next-session-prompt.md`.
 
