@@ -148,7 +148,10 @@ export default async function StaffDashboardPage() {
             <ul className="divide-y divide-border">
               {topMemos.map((m) => (
                 <li key={m.id} className="flex items-center justify-between gap-4 py-3">
-                  <p className="truncate text-sm font-medium text-foreground">{m.title}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{m.title}</p>
+                    <p className="line-clamp-2 text-xs text-muted-foreground">{m.body}</p>
+                  </div>
                   {m.pinned ? <Badge variant="info">{t("staff.pinned")}</Badge> : null}
                 </li>
               ))}
