@@ -19,7 +19,7 @@ This document pairs with the Supabase-auth migration PR and its spike (to be aut
 | Framework | Next.js 16 (App Router, React 19, React Compiler enabled) | ADR-014, ADR-015 |
 | Auth library | Supabase Auth via `@supabase/ssr` (server-side cookie session helpers) | ADR-018 |
 | Identity store | Managed `auth.users` (Supabase-owned schema; not in our DDL) | ADR-018 |
-| App profile | `public.profiles`, FK 1:1 to `auth.users.id` (uuid reused) | ADR-018 |
+| App profile | `public.users` (ADR-018 "profiles" anchor; no rename), FK 1:1 to `auth.users.id` (uuid reused) | ADR-018 |
 | Session strategy | Supabase JWT access token (short TTL) + refresh token, rotated via `@supabase/ssr` | ADR-019 |
 | Magic-link / OTP delivery | Supabase email (built-in); Resend optionally retained as custom SMTP sender | ADR-018 |
 | OAuth provider | Google (SRS UC01 "Login with Google") via Supabase | ADR-018, SRS UC01 |
@@ -35,27 +35,29 @@ The drizzle-adapter rows, the `next-auth` pin, the database-session strategy, th
 ADR-018 moves identity into Supabase-managed `auth.users` while keeping the application's own profile row. The two are bound 1:1 on a shared uuid so that **every existing foreign key survives unchanged**.
 
 - **`auth.users`** — owned and migrated by Supabase, never declared in our Drizzle schema or in `supabase/migrations/0000_*`. Supabase issues the uuid `id`, stores the credential / OAuth identity material, and hashes passwords (SRS UC01 "uses Supabase to hash"). Our code treats this table as read-only and reaches it only through the Supabase admin API.
-- **`public.profiles`** — the application profile, PK = FK `id uuid REFERENCES auth.users(id) ON DELETE CASCADE`. The uuid is **reused, not regenerated**, so `user_role.user_id`, `parent_profile.user_id`, `staff_profile.user_id`, `student_profile.user_id`, `family_link`, `parent_verification_request.user_id`, and the audit-log actor columns all continue to point at the same key. What was the old `public.users` row becomes `public.profiles`; the human-facing columns (`name`, `email`, `image`, `created_at`, `updated_at`, status) live here, and the credential columns move to `auth.users`.
+- **`public.users`** (the ADR-018 "profiles" anchor) — the application profile, PK = FK `id uuid REFERENCES auth.users(id) ON DELETE CASCADE`. **Naming note (resolved by the #79 migration):** ADR-018 calls this anchor `public.profiles`, but the shipped schema has no `profiles` table — the real 1:1 anchor is `public.users` (uuid PK), with per-role detail in `parent_profile` / `staff_profile` / `student_profile`. Migration `0006` therefore targets `public.users` and performs **no rename**; "profiles" is kept as the logical/ERD label only. The uuid is **reused, not regenerated**, so `user_role.user_id`, `parent_profile.user_id`, `staff_profile.user_id`, `student_profile.user_id`, `family_link`, `parent_verification_request.user_id`, and the audit-log actor columns all continue to point at the same key. The human-facing columns (`name`, `email`, `image`, `created_at`, `updated_at`, `"emailVerified"`) live here; the credential / OAuth identity material lives in `auth.users`. Account `status` is **not** a column on `public.users` — it is derived per request from the latest `parent_verification_request` (see the hook and `resolveStatus`).
 
 ### Profile provisioning trigger
 
 A row in `auth.users` does not by itself create the application profile. A Supabase on-insert trigger bridges the two so that the very first authenticated request already has a profile to join against:
 
 ```sql
--- supabase/migrations/00NN_supabase_auth_handoff.sql (target)
-create or replace function public.handle_new_auth_user()
+-- supabase/migrations/0006_supabase_auth_cutover.sql (as shipped)
+create or replace function public.provision_app_user()
 returns trigger
 language plpgsql
 security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, email, name, image)
+  insert into public.users (id, email, name, "emailVerified", created_at, updated_at)
   values (
     new.id,
     new.email,
-    coalesce(new.raw_user_meta_data ->> 'full_name', new.email),
-    new.raw_user_meta_data ->> 'avatar_url'
+    coalesce(new.raw_user_meta_data ->> 'name', new.raw_user_meta_data ->> 'full_name'),
+    new.email_confirmed_at,
+    now(),
+    now()
   )
   on conflict (id) do nothing;
   return new;
@@ -64,10 +66,10 @@ $$;
 
 create trigger on_auth_user_created
   after insert on auth.users
-  for each row execute function public.handle_new_auth_user();
+  for each row execute function public.provision_app_user();
 ```
 
-The trigger is `security definer` because `auth` is Supabase-owned; it is idempotent (`on conflict do nothing`) so that a backfill of pre-existing users and the live trigger cannot collide. Role assignment is **not** done here — provisioning a profile is distinct from granting any role. New self-registering parents land with no roles and a `PENDING_VERIFICATION` status until an admin acts (ADR-011); see below.
+The trigger is `security definer` because `auth` is Supabase-owned; it is idempotent (`on conflict do nothing`) so that a backfill of pre-existing users and the live trigger cannot collide. The `"emailVerified"` column is the retained Auth.js adapter column (camelCase, quoted in DDL) populated from `auth.users.email_confirmed_at`. Role assignment is **not** done here — provisioning a profile is distinct from granting any role. New self-registering parents land with no roles and a `PENDING_VERIFICATION` status until an admin acts (ADR-011); see below.
 
 ### Dropped adapter tables
 
@@ -85,52 +87,58 @@ ADR-018 removes the Auth.js adapter surface entirely. The following tables, decl
 Supabase issues the session JWT, but it does not know our RBAC matrix. ADR-019 keeps the **application layer as the RBAC source of truth** and uses a Supabase **custom access-token hook** to inject only *lightweight* claims — role codes, account status, and department ids — into the token's `app_metadata`. The hook is a single Postgres function registered in the Supabase Auth config:
 
 ```sql
--- supabase/migrations/00NN_access_token_hook.sql (target)
--- Registered in Supabase Auth as the custom access token hook.
+-- supabase/migrations/0006_supabase_auth_cutover.sql (as shipped, abridged)
+-- Registered in Supabase Auth as the custom access-token hook (dashboard step).
 create or replace function public.add_rbac_claims(event jsonb)
 returns jsonb
 language plpgsql
 stable
-security definer
-set search_path = public
 as $$
 declare
-  uid          uuid := (event ->> 'user_id')::uuid;
-  claims       jsonb := coalesce(event -> 'claims', '{}'::jsonb);
-  app_metadata jsonb := coalesce(claims -> 'app_metadata', '{}'::jsonb);
-  role_codes   jsonb;
-  acct_status  text;
-  dept_ids     jsonb;
+  v_user_id    uuid := (event ->> 'user_id')::uuid;
+  v_role_codes text[];
+  v_dept_ids   text[];
+  v_status     text;
 begin
-  select coalesce(jsonb_agg(distinct r.code), '[]'::jsonb)
-    into role_codes
+  -- role_codes: every assigned role, by code
+  select coalesce(array_agg(distinct r.code), '{}') into v_role_codes
   from public.user_role ur
   join public.roles r on r.id = ur.role_id
-  where ur.user_id = uid;
+  where ur.user_id = v_user_id;
 
-  select coalesce(p.status, 'PENDING_VERIFICATION')
-    into acct_status
-  from public.profiles p
-  where p.id = uid;
+  -- dept_ids: staff_profile.dept_id UNION department-scoped user_role.scope_id
+  select coalesce(array_agg(distinct d), '{}') into v_dept_ids
+  from (
+    select sp.dept_id::text d from public.staff_profile sp
+      where sp.user_id = v_user_id and sp.dept_id is not null
+    union
+    select ur.scope_id::text d from public.user_role ur
+      where ur.user_id = v_user_id and ur.scope_type = 'department'
+  ) depts;
 
-  select coalesce(jsonb_agg(distinct ur.scope_id), '[]'::jsonb)
-    into dept_ids
-  from public.user_role ur
-  where ur.user_id = uid and ur.scope_type = 'department';
+  -- status: ACTIVE for non-parents; for parents, the latest
+  -- parent_verification_request decides (mirrors resolveStatus/loadParentStatus).
+  -- There is NO status column on public.users; status is derived, never stored.
+  if not ('parent' = any(v_role_codes)) then
+    v_status := 'ACTIVE';
+  else
+    -- approved -> ACTIVE, rejected -> SUSPENDED, else PENDING_VERIFICATION
+    v_status := /* derived from latest parent_verification_request.status */ 'PENDING_VERIFICATION';
+  end if;
 
-  app_metadata := app_metadata
-    || jsonb_build_object(
-         'role_codes', role_codes,
-         'status',     acct_status,
-         'dept_ids',   dept_ids
-       );
-
-  return jsonb_set(claims_wrapper(event), '{claims,app_metadata}', app_metadata);
+  return jsonb_set(
+    event, '{claims,app_metadata}',
+    coalesce(event #> '{claims,app_metadata}', '{}'::jsonb) || jsonb_build_object(
+      'role_codes', to_jsonb(v_role_codes),
+      'status',     to_jsonb(v_status),
+      'dept_ids',   to_jsonb(v_dept_ids)
+    )
+  );
 end;
 $$;
 ```
 
-(The `claims_wrapper` placeholder above stands in for the standard "merge back into `event.claims`" return shape; the migration spells it out.) Design rules for the hook:
+(The full parent-status `case` is spelled out in the migration.) Design rules for the hook:
 
 - **Lightweight only.** Role codes, status, and dept ids — never the full ~38-code permission catalogue. Permissions are resolved per-request in the app layer from `role_permission`, so a permission-matrix edit takes effect without re-minting tokens.
 - **Re-evaluated on token mint and refresh.** Because access tokens are short-lived (below), a role change propagates into the claims on the next refresh without bespoke plumbing.
@@ -254,14 +262,29 @@ ADR-019 reaffirms ADR-002: the **application layer stays the RBAC source of trut
   3. **Admin session-revoke on role change.** Every Admin Server Action that mutates `user_role` (grant, revoke, scope flip) also calls the Supabase admin API to revoke the target user's sessions, forcing an immediate re-mint with fresh claims:
 
      ```ts
-     await supabaseAdmin.auth.admin.signOut(targetUserId, "global");
+     // ADR-019 named `supabase.auth.admin.signOut(userId, 'global')`, but the
+     // installed auth-js admin API has NO userId-keyed session-revoke: its
+     // signOut(jwt, scope?) takes a logged-in JWT, not a user id. The
+     // type-honest userId-keyed revoke is the GoTrue admin REST endpoint
+     // POST /auth/v1/admin/users/{id}/logout, called with the service-role key.
+     // See docs/phase-1/05-tech-spikes/supabase-auth/revocation.ts.md; #34
+     // (force-logout) and #30 (admin user-management) consume this helper.
+     await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${targetUserId}/logout`, {
+       method: "POST",
+       headers: {
+         apikey: SERVICE_ROLE_KEY,
+         Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+         "Content-Type": "application/json",
+       },
+       body: JSON.stringify({ scope: "global" }),
+     });
      ```
 
 - **Revocation-latency NFR.** For routes gated by the app layer (the common case), the worst-case window from an admin role change to enforcement is one request. For any decision that reads stale `app_metadata` claims directly (discouraged), the worst case is one access-token TTL (<= 15 min). The forced-logout banner UX ("your session was refreshed") remains a follow-up; the security primitive is in place.
 
 ## PENDING_VERIFICATION parent flow
 
-The parent self-registration UX from the previous revision is preserved unchanged in intent (ADR-011). Parents who self-register provision a `public.profiles` row with `status = 'PENDING_VERIFICATION'` (via the handoff trigger) and a pending `parent_verification_request` row, but **no roles**. The `status` claim rides in `app_metadata` for cheap gating, and the authoritative status is re-read server-side during session resolution. Such users **can** log in — they need to see that they are pending — but every protected route short-circuits to a friendly bilingual notice instead of rendering data. The `requireUser` short-circuit pattern is identical to before:
+The parent self-registration UX from the previous revision is preserved unchanged in intent (ADR-011). Parents who self-register provision a `public.users` row (via the provisioning trigger) and a pending `parent_verification_request` row, but **no roles**; their derived `status` is `PENDING_VERIFICATION`. The `status` claim rides in `app_metadata` for cheap gating, and the authoritative status is re-read server-side during session resolution. Such users **can** log in — they need to see that they are pending — but every protected route short-circuits to a friendly bilingual notice instead of rendering data. The `requireUser` short-circuit pattern is identical to before:
 
 ```tsx
 // src/app/(parent)/parent/dashboard/page.tsx
@@ -279,18 +302,18 @@ The public RBAC surface is **preserved**. `getCurrentUser`, `requireUser`, `hasP
 
 ```ts
 // src/lib/rbac.ts — signatures unchanged
-export async function getCurrentUser(): Promise<SessionUser | null>;
-export async function requireUser(): Promise<SessionUser>;          // redirects to /login if anon
-export function hasPermission(user: SessionUser, code: PermissionCode): boolean;
-export async function requirePermission(code: PermissionCode): Promise<SessionUser>; // forbidden() if denied
+export async function getCurrentUser(): Promise<AuthedUser | null>;
+export async function requireUser(): Promise<AuthedUser>;          // redirects to /login if anon
+export function hasPermission(user: AuthedUser, code: PermissionCode): boolean;
+export async function requirePermission(code: PermissionCode): Promise<AuthedUser>; // forbidden() if denied
 ```
 
 Internally:
 
-- `getCurrentUser` now obtains the verified user from the request-scoped Supabase server client (`supabase.auth.getUser()`), reads `id` and the `app_metadata` claims for a fast-path `status` / `role_codes` / `dept_ids`, then resolves the full effective `permissions` set via `loadSessionContext(userId)` — the same single Drizzle join across `user_role`, `roles`, `role_permission`, `permissions`, plus `staff_profile.dept_id` and the latest `parent_verification_request`. The join is still wrapped in `React.cache` so repeated calls in one render pass do not repeat it.
-- The `SessionUser` shape (`id`, `email`, `name`, `image`, `roles`, `permissions`, `deptIds`, `status`) is unchanged, so the ~48 downstream consumers compile and behave identically.
+- `getCurrentUser` now obtains the verified user from the request-scoped Supabase server client (`supabase.auth.getUser()`), reads `id` and `email`, then resolves `roles` / `permissions` / `deptIds` / `status` via the unchanged `loadSessionContext(userId)` — the same single Drizzle join across `user_role`, `roles`, `role_permission`, `permissions`, plus `staff_profile.dept_id` and the latest `parent_verification_request`. `loadSessionContext` stays wrapped in `React.cache`, so repeated calls in one render pass do not repeat the join. The `app_metadata` claims are a defense-in-depth/RLS-correctness input for the v2 authenticated-key path, **not** read by `getCurrentUser` in v1 — the DB resolution is authoritative.
+- The exported type name is **`AuthedUser`** (kept from the previous revision so the ~48 consumers' `import { AuthedUser } from "@/lib/rbac"` is untouched); its shape (`id`, `email`, `name`, `image?`, `roles`, `permissions`, `deptIds`, `status`) is unchanged.
 
-The previous revision augmented the `next-auth` `Session` type via `src/types/next-auth.d.ts`. That declaration file is removed; the `SessionUser` type now lives in `src/lib/rbac/types.ts` and is the single contract every consumer imports.
+The previous revision augmented the `next-auth` `Session` type via `src/types/next-auth.d.ts`. That declaration file is removed; the `AuthedUser` type now lives in `src/lib/rbac/session-user.ts` and is re-exported from `src/lib/rbac.ts`, which is the single contract every consumer imports.
 
 ## Superseded shipped code and cut-over strategy
 
@@ -300,9 +323,9 @@ The previous revision shipped real code in PR #25. ADR-018 supersedes the follow
 |---|---|
 | `src/lib/auth.ts` (`NextAuth({...})` singleton, session callback) | Removed. Replaced by `src/lib/supabase/server.ts` + `src/lib/supabase/client.ts` (`createServerClient` / `createBrowserClient` factories). |
 | `src/lib/auth/send-magic-link.ts` | Removed. OTP / magic-link delivery is Supabase's; optional Resend custom-SMTP config moves to Supabase Auth settings. |
-| `src/app/api/auth/[...nextauth]/route.ts` | Removed. Replaced by the Supabase OAuth callback route handler (`src/app/(auth)/auth/callback/route.ts`). |
+| `src/app/api/auth/[...nextauth]/route.ts` | Removed. Replaced by the Supabase code-exchange callback route handler (`src/app/auth/callback/route.ts`, `exchangeCodeForSession`). |
 | `proxy.ts` | Rewritten onto `createServerClient` + `getUser()` + refresh-and-set (above). |
-| `src/types/next-auth.d.ts` | Removed; `SessionUser` lives in `src/lib/rbac/types.ts`. |
+| `src/types/next-auth.d.ts` | Removed; the app-owned `AuthedUser` lives in `src/lib/rbac/session-user.ts` (re-exported from `src/lib/rbac.ts`). |
 
 The cut-over is deliberately **localized to roughly five files** so the blast radius stays small. The shield is `src/lib/rbac.ts`: because `getCurrentUser` / `requireUser` / `hasPermission` / `requirePermission` keep their signatures, the **~48 call sites across the `(parent)`, `(staff)`, and `(admin)` route groups need no changes**. The migration swaps the identity backend underneath a stable interface — the application's authorization vocabulary is untouched. The login UI (`(auth)/login/*`) is re-pointed at `signInWithOtp` / `verifyOtp` and gains a "Login with Google" button (SRS UC01); the `check-email` and `error` pages survive with copy tweaks.
 
@@ -312,7 +335,7 @@ The cut-over is deliberately **localized to roughly five files** so the blast ra
 |---|---|
 | Unit — `getCurrentUser` / `requirePermission` / `hasPermission` | Mock the Supabase server client to return a fixed user + `app_metadata`; assert permission resolution, `forbidden()` on denial, and `PENDING_VERIFICATION` short-circuit. |
 | Unit — `add_rbac_claims` hook (SQL) | pgTAP / SQL test against a seeded user: assert `role_codes`, `status`, `dept_ids` land in `claims.app_metadata` and that a user with no roles yields `[]` + `PENDING_VERIFICATION`. |
-| Integration — handoff trigger | Insert into `auth.users` (local Supabase), assert a `public.profiles` row appears with the same uuid; assert idempotency on conflict. |
+| Integration — handoff trigger | Insert into `auth.users` (local Supabase), assert a `public.users` row appears with the same uuid; assert idempotency on conflict. |
 | Integration — proxy refresh | Drive `proxy.ts` with a near-expiry access token; assert the rotated `sb-<ref>-auth-token` cookie is written to the response (regression guard against the silent-logout bug). |
 | E2E — Playwright | `/login` OTP round-trip via local Supabase Inbucket -> `/admin/dashboard`; Google OAuth happy path stubbed. Tracked as a follow-up issue (E2E not in CI yet). |
 | Production build | `next build` with synthetic `NEXT_PUBLIC_SUPABASE_URL` / anon key / service-role key; CI verify job sets the same env vars. |
@@ -325,6 +348,10 @@ The cut-over is deliberately **localized to roughly five files** so the blast ra
 - **Authenticated-key + RLS-primary migration (v2)** — v1 stays on the service-role connection with app-layer enforcement (ADR-019). Flipping the data path onto the authenticated key so RLS enforces is explicitly deferred to v2.
 - **PDPA / consent artefacts** — recorded as a design constraint and dependency (ADR-008), not authored this pass: the FYP runs on synthetic data only, so no PDPA rule is yet engaged. DSAR-supporting flows (account deletion, email change) remain tracked for when real student data is introduced.
 
+## Correction to ADR-019 — userId-keyed session revoke API
+
+ADR-019 (status: Proposed) names the revoke call `supabase.auth.admin.signOut(userId, 'global')`. **That method does not exist in the installed auth-js admin API**, whose `signOut(jwt, scope?)` takes a logged-in JWT, not a user id. The implementation in this cut-over and in the downstream tickets (#30 admin user-management, #34 force-logout) must therefore use the GoTrue admin REST endpoint `POST /auth/v1/admin/users/{id}/logout` with the service-role key (see the revocation snippet in the "Enforcement and revocation model" section above and `docs/phase-1/05-tech-spikes/supabase-auth/revocation.ts.md`). This is a documentation-level correction recorded here per the ADR convention (Accepted ADRs are not edited in place; ADR-019 is Proposed and is corrected by this note rather than re-written). No admin session-revoke helper is wired by issue #79 itself — it ships with #30/#34.
+
 ## References
 
 - Source docs — thesis Chapter 3 (Supabase Auth + RLS) and Chapter 4 ERD ("PROFILES connected to Supabase Auth's auth_users"); SRS UC01 ("Login with Google", "uses Supabase to hash"). See source-docs/thesis.md and source-docs/srs.md.
@@ -333,4 +360,4 @@ The cut-over is deliberately **localized to roughly five files** so the blast ra
 - ADR-011 — Admin-only parent/student linking and parent self-registration approval (PENDING_VERIFICATION flow).
 - ADR-012 — Use `proxy.ts`, not `middleware.ts`, on the Node.js runtime for session refresh and auth gating.
 - ADR-008 — PDPA-2010-aligned design (recorded as a deferred dependency under synthetic-data scope).
-- Companion design docs — rls-policy-design.md (RLS correct-but-bypassed in v1), database-schema.sql.md (`public.profiles` and the dropped adapter tables), folder-structure-spec.md (locked target tree under `src/`).
+- Companion design docs — rls-policy-design.md (RLS correct-but-bypassed in v1), database-schema.sql.md (`public.users` as the "profiles" anchor and the dropped adapter tables), folder-structure-spec.md (locked target tree under `src/`).

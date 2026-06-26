@@ -1,14 +1,29 @@
 import { forbidden, redirect } from "next/navigation";
-import type { Session } from "next-auth";
 
-import { auth } from "@/lib/auth";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { loadSessionContext } from "@/lib/rbac/session-context";
+import type { AuthedUser } from "@/lib/rbac/session-user";
 import type { PermissionCode } from "@/lib/rbac/types";
 
-export type AuthedUser = Session["user"];
+export type { AuthedUser } from "@/lib/rbac/session-user";
 
 export async function getCurrentUser(): Promise<AuthedUser | null> {
-  const session = await auth();
-  return session?.user ?? null;
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const ctx = await loadSessionContext(user.id);
+  return {
+    id: user.id,
+    email: user.email ?? "",
+    name: (user.user_metadata?.name as string | undefined) ?? null,
+    roles: ctx.roles,
+    permissions: ctx.permissions,
+    deptIds: ctx.deptIds,
+    status: ctx.status,
+  };
 }
 
 export async function requireUser(redirectTo = "/login"): Promise<AuthedUser> {
