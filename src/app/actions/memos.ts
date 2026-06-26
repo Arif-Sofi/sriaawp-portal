@@ -1,6 +1,7 @@
 "use server";
 
 import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 
 import { memo } from "@/db/schema";
 import { db } from "@/lib/db";
@@ -51,6 +52,8 @@ export async function createMemo(input: MemoInput): Promise<ActionResult<MemoRow
     resourceId: row.id,
   });
 
+  revalidatePath("/admin/memos");
+  revalidatePath("/staff/dashboard");
   return ok(row);
 }
 
@@ -86,6 +89,8 @@ export async function updateMemo(
     resourceId: id,
   });
 
+  revalidatePath("/admin/memos");
+  revalidatePath("/staff/dashboard");
   return ok(row);
 }
 
@@ -102,5 +107,7 @@ export async function deleteMemo(id: string): Promise<ActionResult<void>> {
     resourceId: id,
   });
 
+  revalidatePath("/admin/memos");
+  revalidatePath("/staff/dashboard");
   return ok(undefined);
 }
