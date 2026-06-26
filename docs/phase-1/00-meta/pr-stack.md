@@ -77,6 +77,18 @@ After each merge, the next branch in the stack is rebased onto the new `main` an
 
 This tracker predates the FYP2 frontend train; the live stack tip is now well beyond PR #25. The 2026-06-20 re-baseline lands on its own branch `docs/rebaseline-2026-06`, **based on the current stack tip** (not `main`, which does not yet carry `docs/phase-1/`). It is docs-only (ADR-018..023, P0 v2, MoSCoW, Supabase-auth design, risk + source-doc reconciliation) and stacks above the source-docs sync. Title prefix: `docs(phase-1):`.
 
+## 2026-06-21 — re-baseline BUILD train (draining the `re-baseline` backlog)
+
+Stacks on the re-baseline docs branch `docs/rebaseline-2026-06` (PR #78). Nothing is merged to `main` yet; the whole foundation stack (#3..#78) is unmerged and awaiting the human's end-of-phase e2e. New build branches therefore stack on the tip and are left for that merge train rather than auto-merged. Stack runs deeper than the 4-deep rule by necessity (accepted tradeoff while `main` is empty). Keystone exception: **PR #79 (Auth.js -> Supabase cut-over) is left OPEN for human review** — it is the only ticket rewriting already-shipped code (PR #25).
+
+Build train (bottom = earliest dependency):
+
+| PR | Branch | Base | Issue | Status |
+|----|--------|------|-------|--------|
+| #90 | `spike/supabase-auth-ssr` | `docs/rebaseline-2026-06` | #11 | Open. Supabase Auth `@supabase/ssr` spike (additive; Auth.js stays live). |
+
+Next planned (dependency order): #12 RLS spike -> #14 AI SDK spike -> #13 pgvector spike -> #79 auth cut-over (LEAVE OPEN) -> #28/#26 DB -> #80/#81 AI -> #82/#83 engagement -> #84/#85 Facebook (mock) -> #58/#30-#34 auth follow-ups. See `docs/agent/next-session-prompt.md`.
+
 ## Closed / merged PRs
 
 (none yet)
