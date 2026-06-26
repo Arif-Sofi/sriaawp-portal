@@ -2,6 +2,11 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@utility container {
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
 :root {
   --radius: 0.625rem;
 
