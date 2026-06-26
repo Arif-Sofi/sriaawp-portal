@@ -11,13 +11,14 @@ import { LanguageToggle } from "./language-toggle";
 type AuthHeaderProps = {
   locale: Locale;
   userName: string;
+  homeHref?: string;
 };
 
-export function AuthHeader({ locale, userName }: AuthHeaderProps) {
+export function AuthHeader({ locale, userName, homeHref = "/" }: AuthHeaderProps) {
   const t = (key: string) => translate(ui, key, locale);
 
   const brand = (
-    <Link href="/" className="text-sm font-bold text-primary-foreground hover:opacity-90">
+    <Link href={homeHref} className="text-sm font-bold text-primary-foreground hover:opacity-90">
       SRIAAWP
     </Link>
   );

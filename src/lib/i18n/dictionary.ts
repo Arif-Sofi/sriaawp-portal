@@ -6,6 +6,15 @@ export const ui: Dictionary = {
   "nav.takwim": { ms: "Takwim", en: "Calendar" },
   "nav.login": { ms: "Log Masuk", en: "Login" },
   "nav.logout": { ms: "Log Keluar", en: "Logout" },
+  "nav.dashboard": { ms: "Papan Pemuka", en: "Dashboard" },
+  "nav.users": { ms: "Pengguna", en: "Users" },
+  "nav.documents": { ms: "Dokumen", en: "Documents" },
+  "nav.memos": { ms: "Memo", en: "Memos" },
+  "nav.departments": { ms: "Jabatan", en: "Departments" },
+  "nav.familyLinks": { ms: "Pautan Keluarga", en: "Family Links" },
+  "nav.verify": { ms: "Pengesahan", en: "Verification" },
+  "nav.events": { ms: "Acara", en: "Events" },
+  "nav.children": { ms: "Anak", en: "Children" },
 
   "home.heroTitle": {
     ms: "Selamat Datang ke Portal SRIAAWP",
@@ -16,6 +25,7 @@ export const ui: Dictionary = {
     en: "The official information hub of Sekolah Rendah Islam Antarabangsa Wilayah Persekutuan.",
   },
   "home.heroCta": { ms: "Log Masuk ke Akaun", en: "Sign In to Your Account" },
+  "home.goToDashboard": { ms: "Pergi ke papan pemuka", en: "Go to my dashboard" },
 
   "home.aboutTitle": { ms: "Tentang Sekolah", en: "About the School" },
   "home.aboutBody": {

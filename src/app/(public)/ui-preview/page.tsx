@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { notFound } from "next/navigation";
 
 import { AppShell } from "@/components/shared/app-shell";
 import { Breadcrumbs } from "@/components/shared/breadcrumbs";
@@ -226,6 +227,8 @@ function ComponentGallery({ idPrefix }: { idPrefix: string }) {
 }
 
 export default function UIPreviewPage() {
+  if (process.env.NODE_ENV === "production") notFound();
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
       <h1 className="mb-2 text-3xl font-bold text-foreground">UI Design System Preview</h1>

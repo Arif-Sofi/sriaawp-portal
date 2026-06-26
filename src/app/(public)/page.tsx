@@ -6,19 +6,28 @@ import { AppShortcuts } from "@/components/portal/app-shortcuts";
 import { AppTile } from "@/components/portal/app-tile";
 import { PortalSection } from "@/components/portal/portal-section";
 import { PromoBanner } from "@/components/portal/promo-banner";
+import { auth } from "@/lib/auth";
 import { translate } from "@/lib/i18n";
 import { ui } from "@/lib/i18n/dictionary";
 import { getLocale } from "@/lib/i18n/server";
+import { dashboardPathForRoles } from "@/lib/navigation";
 
 export default async function PublicLandingPage() {
-  const locale = await getLocale();
+  const [session, locale] = await Promise.all([auth(), getLocale()]);
   const t = (key: string) => translate(ui, key, locale);
+
+  const dashPath = session?.user ? dashboardPathForRoles(session.user.roles) : null;
+  const dash = dashPath && dashPath !== "/" ? dashPath : null;
+
+  const lastShortcut = dash
+    ? { href: dash, label: t("nav.dashboard"), icon: <Icon name="home" /> }
+    : { href: "/login", label: t("shortcut.logMasuk"), icon: <Icon name="users" /> };
 
   const shortcuts = [
     { href: "/takwim", label: t("shortcut.takwim"), icon: <Icon name="calendar" /> },
     { href: "/news", label: t("shortcut.berita"), icon: <Icon name="news" /> },
     { href: "/privacy", label: t("shortcut.privasi"), icon: <Icon name="file" /> },
-    { href: "/login", label: t("shortcut.logMasuk"), icon: <Icon name="users" /> },
+    lastShortcut,
   ];
 
   const quickLinks = [
@@ -36,8 +45,11 @@ export default async function PublicLandingPage() {
           <PortalSection title={t("section.welcome")}>
             <p className="text-sm text-muted-foreground">{t("welcome.body")}</p>
             <div className="mt-4">
-              <Link href="/login" className="text-sm font-medium text-primary hover:underline">
-                {t("home.heroCta")}
+              <Link
+                href={dash ?? "/login"}
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                {dash ? t("home.goToDashboard") : t("home.heroCta")}
               </Link>
             </div>
           </PortalSection>
@@ -87,10 +99,10 @@ export default async function PublicLandingPage() {
               body={t("promo.body")}
               action={
                 <Link
-                  href="/login"
+                  href={dash ?? "/login"}
                   className="inline-flex h-9 items-center justify-center rounded-md bg-primary-foreground px-4 text-sm font-medium text-primary transition-colors hover:bg-primary-foreground/90"
                 >
-                  {t("nav.login")}
+                  {dash ? t("nav.dashboard") : t("nav.login")}
                 </Link>
               }
             />
