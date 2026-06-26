@@ -5,6 +5,8 @@
 > **Scope of this PR.** Only the Auth.js v5 adapter tables, RBAC tables, profile tables, departments, and the parent verification request table. Feature-domain tables (events, news, memos, documents, document chunks, embeddings, RAG operational tables, co-curricular tables) are deferred — see [§ Deferred tables](#deferred-tables).
 >
 > **Status.** Drafted alongside PR #24. Generated migration: `supabase/migrations/0000_auth_rbac_profiles.sql`. RLS policies: `supabase/migrations/0001_rls_policies.sql`.
+>
+> **Re-baseline note (2026-06-20, ADR-018).** The Auth.js v5 adapter tables below (`users`, `accounts`, `sessions`, `verification_token`, `authenticators`) are superseded by Supabase Auth: identity moves to managed `auth.users`, the app keeps a `public.profiles` row FK'd 1:1 to `auth.users.id` (uuid reused so downstream FKs survive), and the adapter tables are dropped. Target shape in [`auth-and-session-design.md`](./auth-and-session-design.md); this DDL doc is rewritten in the Supabase-auth migration PR.
 
 ---
 

@@ -3,6 +3,8 @@
 > Defense-in-depth Row Level Security policies on the SRIAAWP Portal database. The application layer remains the source of truth for RBAC ([ADR-002](../00-meta/decision-log.md)); RLS mirrors the matrix at the storage tier so that any direct connection through the Supabase anon key cannot bypass the rules.
 >
 > **Source.** `supabase/migrations/0001_rls_policies.sql`. **Scope.** PR #24 covers the foundation tables (auth, RBAC, profiles, departments, parent verification). Feature-table policies (events, documents, embeddings, etc.) ship with their respective schema PRs.
+>
+> **Re-baseline note (2026-06-20, ADR-018/019).** Under Supabase Auth, `auth.uid()` is Supabase's `auth.users.id` and `auth.jwt() -> 'app_metadata'` carries the role codes injected by the `add_rbac_claims` access-token hook (not the Auth.js session callback). v1 keeps the service-role connection, so these policies are correct-but-bypassed (a dormant safety net); the authenticated-key / RLS-primary path is deferred to v2. See ADR-019 and [`auth-and-session-design.md`](./auth-and-session-design.md).
 
 ---
 

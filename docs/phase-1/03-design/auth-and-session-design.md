@@ -1,137 +1,267 @@
 # Auth and Session Design
 
-**Status.** Authored alongside PR #25 (`feat/auth-rbac`).
+**Status.** Target design (post-2026-06-20 re-baseline). Supersedes the Auth.js v5 implementation shipped in PR #25; pending the Supabase-auth migration PR + spike.
 
 **Author.** Muhammad Arif Hakimi.
 
-**Updated.** 2026-05-06.
+**Updated.** 2026-06-21.
 
 ## Goal
 
-Document the wired-up shape of authentication and session handling for the SRIAAWP portal so that thesis-grade reviewers (and FYP2 contributors) can follow the request lifecycle end to end without reading the source. Implementation follows [`../05-tech-spikes/spike-authjs-v5-app-router.md`](../05-tech-spikes/spike-authjs-v5-app-router.md); deviations from the playbook are flagged inline.
+Document the target shape of authentication and session handling for the SRIAAWP portal so that thesis-grade reviewers (and FYP2 contributors) can follow the request lifecycle end to end without reading the source. The design re-aligns the portal onto **Supabase Auth** as mandated by the 2026-06-20 stakeholder re-baseline (ADR-018) and the source-of-truth artefacts: thesis Chapter 3 and the Chapter 4 ERD already specify Supabase Auth with `profiles` connected to Supabase Auth's `auth.users`, and SRS UC01 lists "Login with Google" plus a "uses Supabase to hash" constraint. The Auth.js v5 stack documented in the previous revision of this file (shipped in PR #25) is superseded; the cut-over strategy that shields the existing consumers is in the final section.
+
+This document pairs with the Supabase-auth migration PR and its spike (to be authored). Deviations from that playbook will be flagged inline once it lands.
 
 ## Stack snapshot
 
 | Concern | Pin / choice | Source |
 |---|---|---|
-| Framework | Next.js 16.2.4 (App Router, React 19, React Compiler enabled) | [ADR-014](../00-meta/decision-log.md#adr-014--cache-components--cachecomponents-is-opt-out-for-v1-opt-routes-in-selectively), [ADR-015](../00-meta/decision-log.md#adr-015--keep-babel-plugin-react-compiler-enabled-with-reactcompiler-true) |
-| Auth library | `next-auth@5.0.0-beta.30` (exact pin) | [ADR-017](../00-meta/decision-log.md#adr-017--pin-next-auth500-beta30-postgres-postgresjs-driver-and-resend-for-magic-link-delivery) |
-| Adapter | `@auth/drizzle-adapter` (Postgres flavour) | [ADR-003](../00-meta/decision-log.md#adr-003--database-sessions-not-jwt), [ADR-016](../00-meta/decision-log.md#adr-016--drizzle-orm-as-the-schema-source-of-truth-drizzle-kit-for-generation-manual-sql-for-rls) |
-| DB driver | `postgres` (postgres.js) with `prepare: false` | [ADR-017](../00-meta/decision-log.md#adr-017--pin-next-auth500-beta30-postgres-postgresjs-driver-and-resend-for-magic-link-delivery) |
-| Session strategy | Database sessions (`session.strategy = "database"`) | [ADR-003](../00-meta/decision-log.md#adr-003--database-sessions-not-jwt) |
-| Magic-link delivery | Resend (free tier dev; paid before production) | [ADR-017](../00-meta/decision-log.md#adr-017--pin-next-auth500-beta30-postgres-postgresjs-driver-and-resend-for-magic-link-delivery) |
-| Edge runtime | Not used. `proxy.ts` runs on Node only. | [ADR-012](../00-meta/decision-log.md#adr-012--use-proxyts-not-middlewarets-on-the-nodejs-runtime-for-session-refresh-and-auth-gating) |
-| Cookie name | `authjs.session-token` (v5 default) | Auth.js v5 changelog |
+| Framework | Next.js 16 (App Router, React 19, React Compiler enabled) | ADR-014, ADR-015 |
+| Auth library | Supabase Auth via `@supabase/ssr` (server-side cookie session helpers) | ADR-018 |
+| Identity store | Managed `auth.users` (Supabase-owned schema; not in our DDL) | ADR-018 |
+| App profile | `public.profiles`, FK 1:1 to `auth.users.id` (uuid reused) | ADR-018 |
+| Session strategy | Supabase JWT access token (short TTL) + refresh token, rotated via `@supabase/ssr` | ADR-019 |
+| Magic-link / OTP delivery | Supabase email (built-in); Resend optionally retained as custom SMTP sender | ADR-018 |
+| OAuth provider | Google (SRS UC01 "Login with Google") via Supabase | ADR-018, SRS UC01 |
+| DB driver / ORM | Drizzle ORM over `postgres` (postgres.js, `prepare: false`); service-role connection in v1 | ADR-016, ADR-019 |
+| Edge runtime | Not used. `proxy.ts` runs on Node only. | ADR-012 |
+| Cookie name | `sb-<project-ref>-auth-token` (Supabase default; chunked when large) | Supabase SSR convention |
+| Enforcement model | App-layer-primary (`requirePermission`) over a service-role connection in v1; RLS correct-but-bypassed | ADR-019, ADR-002 |
 
-## File layout
+The drizzle-adapter rows, the `next-auth` pin, the database-session strategy, the `authjs.session-token` cookie, and the Resend-as-the-only-sender rows from the previous revision are all retired by ADR-018.
 
+## Identity and profile model
+
+ADR-018 moves identity into Supabase-managed `auth.users` while keeping the application's own profile row. The two are bound 1:1 on a shared uuid so that **every existing foreign key survives unchanged**.
+
+- **`auth.users`** — owned and migrated by Supabase, never declared in our Drizzle schema or in `supabase/migrations/0000_*`. Supabase issues the uuid `id`, stores the credential / OAuth identity material, and hashes passwords (SRS UC01 "uses Supabase to hash"). Our code treats this table as read-only and reaches it only through the Supabase admin API.
+- **`public.profiles`** — the application profile, PK = FK `id uuid REFERENCES auth.users(id) ON DELETE CASCADE`. The uuid is **reused, not regenerated**, so `user_role.user_id`, `parent_profile.user_id`, `staff_profile.user_id`, `student_profile.user_id`, `family_link`, `parent_verification_request.user_id`, and the audit-log actor columns all continue to point at the same key. What was the old `public.users` row becomes `public.profiles`; the human-facing columns (`name`, `email`, `image`, `created_at`, `updated_at`, status) live here, and the credential columns move to `auth.users`.
+
+### Profile provisioning trigger
+
+A row in `auth.users` does not by itself create the application profile. A Supabase on-insert trigger bridges the two so that the very first authenticated request already has a profile to join against:
+
+```sql
+-- supabase/migrations/00NN_supabase_auth_handoff.sql (target)
+create or replace function public.handle_new_auth_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, email, name, image)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data ->> 'full_name', new.email),
+    new.raw_user_meta_data ->> 'avatar_url'
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_auth_user();
 ```
-proxy.ts                                          # auth gating per route group (Node only)
-src/lib/auth.ts                                   # NextAuth({...}) singleton; exports handlers/auth/signIn/signOut
-src/lib/auth/send-magic-link.ts                   # bilingual Resend send + dev console fallback
-src/lib/db/index.ts                               # Drizzle client (postgres.js, prepare: false)
-src/lib/rbac.ts                                   # getCurrentUser / requireUser / hasPermission / requirePermission
-src/lib/rbac/types.ts                             # RoleCode / PermissionCode / UserStatus types
-src/lib/rbac/session-context.ts                   # loadSessionContext(userId) — single join
-src/types/next-auth.d.ts                          # Session.user augmentation
-src/app/api/auth/[...nextauth]/route.ts           # GET/POST re-export from src/lib/auth
-src/app/(auth)/login/page.tsx                     # bilingual /login Server Component
-src/app/(auth)/login/login-form.tsx               # client form with Server Action
-src/app/(auth)/login/check-email/page.tsx         # bilingual "magic link sent" page
-src/app/(auth)/login/error/page.tsx               # generic auth error page
-src/app/(parent)/parent/dashboard/page.tsx        # requireUser + PENDING_VERIFICATION short-circuit
-src/app/(parent)/parent/dashboard/pending-approval-notice.tsx
-src/app/(staff)/staff/dashboard/page.tsx          # requirePermission("staff:dashboard:read")
-src/app/(admin)/admin/dashboard/page.tsx          # requirePermission("admin:dashboard:read")
+
+The trigger is `security definer` because `auth` is Supabase-owned; it is idempotent (`on conflict do nothing`) so that a backfill of pre-existing users and the live trigger cannot collide. Role assignment is **not** done here — provisioning a profile is distinct from granting any role. New self-registering parents land with no roles and a `PENDING_VERIFICATION` status until an admin acts (ADR-011); see below.
+
+### Dropped adapter tables
+
+ADR-018 removes the Auth.js adapter surface entirely. The following tables, declared in the previous schema revision, are **dropped** in the migration:
+
+- `accounts` — OAuth/credential linkage now lives inside `auth.users` / `auth.identities`.
+- `sessions` — database sessions are gone; the session is a Supabase-issued JWT (see below).
+- `verification_token` — magic-link / OTP token state is held by Supabase Auth.
+- `authenticators` — WebAuthn/passkey table was forward-compatibility only and was never used; it leaves with the adapter.
+
+`@auth/drizzle-adapter` and `next-auth` are removed from `package.json`. Drizzle **survives** as the ORM for every non-identity table (RBAC, profiles, content, events, documents); only the adapter integration is removed.
+
+## Custom access-token hook — RBAC claims on the JWT
+
+Supabase issues the session JWT, but it does not know our RBAC matrix. ADR-019 keeps the **application layer as the RBAC source of truth** and uses a Supabase **custom access-token hook** to inject only *lightweight* claims — role codes, account status, and department ids — into the token's `app_metadata`. The hook is a single Postgres function registered in the Supabase Auth config:
+
+```sql
+-- supabase/migrations/00NN_access_token_hook.sql (target)
+-- Registered in Supabase Auth as the custom access token hook.
+create or replace function public.add_rbac_claims(event jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  uid          uuid := (event ->> 'user_id')::uuid;
+  claims       jsonb := coalesce(event -> 'claims', '{}'::jsonb);
+  app_metadata jsonb := coalesce(claims -> 'app_metadata', '{}'::jsonb);
+  role_codes   jsonb;
+  acct_status  text;
+  dept_ids     jsonb;
+begin
+  select coalesce(jsonb_agg(distinct r.code), '[]'::jsonb)
+    into role_codes
+  from public.user_role ur
+  join public.roles r on r.id = ur.role_id
+  where ur.user_id = uid;
+
+  select coalesce(p.status, 'PENDING_VERIFICATION')
+    into acct_status
+  from public.profiles p
+  where p.id = uid;
+
+  select coalesce(jsonb_agg(distinct ur.scope_id), '[]'::jsonb)
+    into dept_ids
+  from public.user_role ur
+  where ur.user_id = uid and ur.scope_type = 'department';
+
+  app_metadata := app_metadata
+    || jsonb_build_object(
+         'role_codes', role_codes,
+         'status',     acct_status,
+         'dept_ids',   dept_ids
+       );
+
+  return jsonb_set(claims_wrapper(event), '{claims,app_metadata}', app_metadata);
+end;
+$$;
 ```
 
-## End-to-end magic-link flow
+(The `claims_wrapper` placeholder above stands in for the standard "merge back into `event.claims`" return shape; the migration spells it out.) Design rules for the hook:
+
+- **Lightweight only.** Role codes, status, and dept ids — never the full ~38-code permission catalogue. Permissions are resolved per-request in the app layer from `role_permission`, so a permission-matrix edit takes effect without re-minting tokens.
+- **Re-evaluated on token mint and refresh.** Because access tokens are short-lived (below), a role change propagates into the claims on the next refresh without bespoke plumbing.
+- **It does not replace `requirePermission`.** The claims are an ergonomics and RLS-correctness input, not an authorization decision. The note from the stakeholder re-baseline stands: Supabase gives auth + JWT claims only — the RBAC matrix, the permission catalogue, and the parent-verify flow remain hand-built.
+
+This is the Supabase analogue of what the old `session` callback did when it projected roles onto the cookie; the difference is that the projection now happens inside Postgres at the identity tier and rides on a real signed JWT.
+
+## End-to-end sign-in flow
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant U as User (browser)
     participant L as /login page (RSC)
-    participant A as Server Action (signIn)
-    participant N as Auth.js handler
-    participant R as Resend
-    participant DB as Supabase Postgres
-    participant CB as /api/auth/callback/resend
+    participant A as Server Action
+    participant SB as Supabase Auth
+    participant H as add_rbac_claims hook
+    participant P as proxy.ts (Node)
 
+    rect rgb(245,245,245)
+    Note over U,SB: Magic-link / OTP path (signInWithOtp -> verifyOtp)
     U->>L: GET /login
     L-->>U: bilingual form (BM-first)
-    U->>A: POST <form action={sendMagicLink}>
-    A->>N: signIn("resend", {email, redirectTo})
-    N->>DB: INSERT verification_token (identifier, token, expires)
-    N->>R: emails.send({to, subject, text=bilingual body})
-    R-->>U: email with magic link
-    N-->>U: 302 -> /login/check-email
-    U->>CB: GET /api/auth/callback/resend?token=...&email=...
-    CB->>DB: DELETE verification_token (consume), INSERT sessions row
-    CB-->>U: Set-Cookie authjs.session-token; 302 -> redirectTo
-    U->>L: GET <protected page>
-    Note right of U: proxy.ts runs auth(); req.auth resolves; allow.
+    U->>A: POST email (Server Action)
+    A->>SB: supabase.auth.signInWithOtp({ email })
+    SB-->>U: email with OTP / magic link
+    U->>A: submit OTP token (or click link)
+    A->>SB: supabase.auth.verifyOtp({ email, token, type })
+    SB->>H: mint access token -> run hook
+    H-->>SB: claims.app_metadata { role_codes, status, dept_ids }
+    SB-->>U: Set-Cookie sb-<ref>-auth-token (access + refresh); 302 -> redirectTo
+    end
+
+    rect rgb(245,245,245)
+    Note over U,SB: Google OAuth path (SRS UC01)
+    U->>A: click "Login with Google"
+    A->>SB: supabase.auth.signInWithOAuth({ provider: 'google' })
+    SB-->>U: 302 -> Google consent
+    U->>SB: GET /auth/callback?code=... (PKCE)
+    SB->>H: mint access token -> run hook
+    H-->>SB: claims.app_metadata { role_codes, status, dept_ids }
+    SB-->>U: Set-Cookie sb-<ref>-auth-token; 302 -> redirectTo
+    end
+
+    U->>P: GET <protected page>
+    P->>SB: getUser() (validates JWT; refreshes if near expiry)
+    P-->>U: refreshed Set-Cookie + allow (or 302 -> /login)
 ```
 
-In development the Resend send step short-circuits to `console.log` instead of an HTTP call (see `src/lib/auth/send-magic-link.ts`); the rest of the sequence is identical because the verification token row still exists in `verification_token` and the click-through path consumes it normally.
+In development, Supabase's local stack surfaces the OTP / magic-link in its Inbucket inbox (no outbound email needed); when Resend is wired as the custom SMTP sender the same flow delivers a real bilingual email. The OAuth callback lands on the Supabase-managed `/auth/callback` route handler, which exchanges the PKCE code for the session cookie. Both paths converge on the same cookie and the same hook-populated claims, so everything downstream of the callback is provider-agnostic.
 
-## proxy.ts — what it does and does not do
+## proxy.ts under @supabase/ssr
+
+`proxy.ts` (not `middleware.ts`, per ADR-012) does two jobs: **anonymous-vs-authenticated gating** and the **mandatory Supabase token refresh**. The refresh is not optional plumbing — `@supabase/ssr` rotates the access token from inside the proxy and must write the rotated cookie back onto *both* the request and the response. Getting this wrong does not error; it **silently logs users out** as soon as the original access token expires.
 
 ```ts
 // proxy.ts
-import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { NextResponse, type NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 
 const PROTECTED_PREFIXES = ["/parent", "/staff", "/admin"];
 
-export const proxy = auth((req) => {
+export async function proxy(req: NextRequest) {
+  // The response must be the object Supabase writes refreshed cookies onto.
+  const res = NextResponse.next({ request: req });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll: () => req.cookies.getAll(),
+        setAll: (cookies) => {
+          cookies.forEach(({ name, value }) => req.cookies.set(name, value));
+          cookies.forEach(({ name, value, options }) =>
+            res.cookies.set(name, value, options),
+          );
+        },
+      },
+    },
+  );
+
+  // getUser() revalidates the JWT against Supabase and triggers refresh-and-set.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { pathname } = req.nextUrl;
   const needsAuth = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-  if (!needsAuth) return NextResponse.next();
-  if (req.auth) return NextResponse.next();
+  if (!needsAuth) return res;
+  if (user) return res;
+
   const loginUrl = new URL("/login", req.nextUrl.origin);
   loginUrl.searchParams.set("callbackUrl", pathname);
   return NextResponse.redirect(loginUrl);
-});
+}
 
 export const config = {
   matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };
 ```
 
-Behaviour:
+Behaviour (unchanged in intent from the previous revision; only the mechanism is Supabase):
 
-- **Authenticated-vs-anonymous gating only.** RBAC is enforced inside Server Actions, Route Handlers, and RSC pages via `requirePermission` (per [ADR-002](../00-meta/decision-log.md#adr-002--application-layer-is-the-source-of-truth-for-rbac-supabase-rls-mirrors-as-defense-in-depth)). The proxy never inspects roles.
-- **Node runtime only.** Edge runtime was dropped in Next.js 16 ([ADR-012](../00-meta/decision-log.md#adr-012--use-proxyts-not-middlewarets-on-the-nodejs-runtime-for-session-refresh-and-auth-gating)). `runtime = "edge"` must not be set.
-- **Matcher excludes** `/api/*`, `_next/static/*`, `_next/image/*`, `favicon.ico`, and any URL with a file extension. `/login` is reachable to anonymous callers; the proxy short-circuits because it does not match `/parent|/staff|/admin`.
-- **No `middleware.ts`.** Adding one is a v15-era anti-pattern under [ADR-012](../00-meta/decision-log.md#adr-012--use-proxyts-not-middlewarets-on-the-nodejs-runtime-for-session-refresh-and-auth-gating).
+- **Authenticated-vs-anonymous gating only.** RBAC is enforced inside Server Actions, Route Handlers, and RSC pages via `requirePermission` (ADR-002). The proxy never inspects roles, and it never reads `app_metadata` claims to make an authorization decision.
+- **Mandatory refresh.** `getUser()` revalidates the token and, when it is near expiry, `@supabase/ssr` rotates it; the `setAll` shim above is what persists the rotated cookie. Returning a `NextResponse` that is *not* the one Supabase wrote to drops the refreshed cookie and logs the user out on the next hop.
+- **`getUser`, not `getSession`.** `getUser()` is authenticated against Supabase; `getSession()` trusts the cookie unverified. The proxy uses `getUser()` for the security boundary.
+- **Node runtime only.** Edge runtime was dropped in Next.js 16 (ADR-012). `runtime = "edge"` must not be set.
+- **Matcher unchanged.** It still excludes `/api/*`, `_next/static/*`, `_next/image/*`, `favicon.ico`, and any URL with a file extension. `/login` is reachable to anonymous callers because it does not match `/parent|/staff|/admin`.
+- **No `middleware.ts`.** Adding one is a v15-era anti-pattern under ADR-012.
 
-## Session callback — RBAC payload on the cookie
+## Enforcement and revocation model
 
-The `session` callback on the NextAuth config calls `loadSessionContext(user.id)` and stores the resolved roles, permissions, scope dept ids, and status on `session.user`. The augmentation is declared in `src/types/next-auth.d.ts`:
+ADR-019 reaffirms ADR-002: the **application layer stays the RBAC source of truth**. The enforcement and revocation posture for v1:
 
-```ts
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id: string;
-      email: string;
-      name: string | null;
-      image?: string | null;
-      roles: RoleCode[];
-      permissions: PermissionCode[];
-      deptIds: string[];
-      status: UserStatus;        // 'ACTIVE' | 'PENDING_VERIFICATION' | 'SUSPENDED'
-    };
-  }
-}
-```
+- **App-layer `requirePermission` is authoritative.** Every Server Action, Route Handler, and protected RSC page resolves the caller's effective permissions per-request from `role_permission` and gates the operation before any DB write. The JWT claims are an input to this resolution, not a substitute for it.
+- **Service-role connection in v1.** The trusted server connects to Postgres through the Supabase service-role key, which **bypasses RLS by design**. Consequently `supabase/migrations/0001_rls_policies.sql` is *correct but bypassed* in v1: adopting Supabase Auth does **not** "light up" RLS for free. The RLS SQL needs no change — it now resolves real `auth.uid()` / `auth.jwt()` instead of the Auth.js-projected stand-ins — but it remains a dormant safety net until the v2 authenticated-key path lands. The authenticated-key + RLS-primary migration is **deferred to v2** (see rls-policy-design.md, which is updated in the same re-baseline).
+- **Revocation = short TTL + per-request resolution + admin session-revoke.** There is no database-session row to delete anymore. Instead:
+  1. **Short access-token TTL (5-15 min).** A stale grant cannot outlive one TTL window without a refresh, and the hook re-runs on refresh.
+  2. **Per-request app-layer permission resolution.** For any route gated by `requirePermission`, a revoked permission takes effect *on the next request* (effectively instant), because permissions are resolved live from `role_permission`, not read off the token.
+  3. **Admin session-revoke on role change.** Every Admin Server Action that mutates `user_role` (grant, revoke, scope flip) also calls the Supabase admin API to revoke the target user's sessions, forcing an immediate re-mint with fresh claims:
 
-`loadSessionContext` is a single Drizzle join across `user_role`, `roles`, `role_permission`, `permissions`, plus a `staff_profile.dept_id` lookup, and a parent-status check that reads the latest `parent_verification_request` row. The function is wrapped in `React.cache` so multiple `auth()` calls in one render pass do not repeat the join.
+     ```ts
+     await supabaseAdmin.auth.admin.signOut(targetUserId, "global");
+     ```
+
+- **Revocation-latency NFR.** For routes gated by the app layer (the common case), the worst-case window from an admin role change to enforcement is one request. For any decision that reads stale `app_metadata` claims directly (discouraged), the worst case is one access-token TTL (<= 15 min). The forced-logout banner UX ("your session was refreshed") remains a follow-up; the security primitive is in place.
 
 ## PENDING_VERIFICATION parent flow
 
-Per [ADR-009](../00-meta/decision-log.md#adr-009--rag-audience-admin-teacher-parent-student-excluded-in-v1) and [ADR-011](../00-meta/decision-log.md#adr-011--admin-only-parentstudent-linking-with-csv-bulk--per-family-edits), parents who self-register start with a `parent_verification_request.status = 'pending'` row and are surfaced as `status: 'PENDING_VERIFICATION'` on `session.user`. They CAN log in (they need to see they are pending), but every protected route short-circuits to a friendly bilingual notice instead of rendering data:
+The parent self-registration UX from the previous revision is preserved unchanged in intent (ADR-011). Parents who self-register provision a `public.profiles` row with `status = 'PENDING_VERIFICATION'` (via the handoff trigger) and a pending `parent_verification_request` row, but **no roles**. The `status` claim rides in `app_metadata` for cheap gating, and the authoritative status is re-read server-side during session resolution. Such users **can** log in — they need to see that they are pending — but every protected route short-circuits to a friendly bilingual notice instead of rendering data. The `requireUser` short-circuit pattern is identical to before:
 
 ```tsx
 // src/app/(parent)/parent/dashboard/page.tsx
@@ -141,45 +271,66 @@ if (!hasPermission(user, "user:read:self")) forbidden();
 return <ParentDashboard ... />;
 ```
 
-`<PendingApprovalNotice>` is BM-first ("Akaun menunggu pengesahan / Account pending verification"). RBAC permissions like `event:read` are not granted while pending; routes that demand an active role return 403 via `requirePermission` rather than the friendly notice.
+`<PendingApprovalNotice>` stays BM-first ("Akaun menunggu pengesahan / Account pending verification"). No RBAC permission such as `event:read` is granted while pending; routes that demand an active role return 403 via `requirePermission` rather than the friendly notice. Admin approval grants the `parent` role and flips `status` to `ACTIVE`; the role change triggers the admin session-revoke above, so the parent's next request carries the new claims.
 
-## Session-deletion-on-role-change rule
+## Session-context loader
 
-[ADR-003](../00-meta/decision-log.md#adr-003--database-sessions-not-jwt) is built around instant revocation. Every Admin Server Action that mutates `user_role` (grant, revoke, scope flip) MUST also delete the affected user's session rows in the same transaction:
+The public RBAC surface is **preserved**. `getCurrentUser`, `requireUser`, `hasPermission`, and `requirePermission` keep their exact signatures and semantics; only their internals change — they read the Supabase session instead of calling Auth.js `auth()`.
 
 ```ts
-await db.delete(sessions).where(eq(sessions.userId, targetUserId));
+// src/lib/rbac.ts — signatures unchanged
+export async function getCurrentUser(): Promise<SessionUser | null>;
+export async function requireUser(): Promise<SessionUser>;          // redirects to /login if anon
+export function hasPermission(user: SessionUser, code: PermissionCode): boolean;
+export async function requirePermission(code: PermissionCode): Promise<SessionUser>; // forbidden() if denied
 ```
 
-The user will see their next request redirect through `proxy.ts` to `/login`. The forced-logout banner UX (a friendlier "your session was refreshed" message) is tracked as a follow-up issue; the security primitive is in place from PR #25 as soon as the user-management Server Actions land.
+Internally:
+
+- `getCurrentUser` now obtains the verified user from the request-scoped Supabase server client (`supabase.auth.getUser()`), reads `id` and the `app_metadata` claims for a fast-path `status` / `role_codes` / `dept_ids`, then resolves the full effective `permissions` set via `loadSessionContext(userId)` — the same single Drizzle join across `user_role`, `roles`, `role_permission`, `permissions`, plus `staff_profile.dept_id` and the latest `parent_verification_request`. The join is still wrapped in `React.cache` so repeated calls in one render pass do not repeat it.
+- The `SessionUser` shape (`id`, `email`, `name`, `image`, `roles`, `permissions`, `deptIds`, `status`) is unchanged, so the ~48 downstream consumers compile and behave identically.
+
+The previous revision augmented the `next-auth` `Session` type via `src/types/next-auth.d.ts`. That declaration file is removed; the `SessionUser` type now lives in `src/lib/rbac/types.ts` and is the single contract every consumer imports.
+
+## Superseded shipped code and cut-over strategy
+
+The previous revision shipped real code in PR #25. ADR-018 supersedes the following files; the migration PR removes or rewrites them:
+
+| File | Fate |
+|---|---|
+| `src/lib/auth.ts` (`NextAuth({...})` singleton, session callback) | Removed. Replaced by `src/lib/supabase/server.ts` + `src/lib/supabase/client.ts` (`createServerClient` / `createBrowserClient` factories). |
+| `src/lib/auth/send-magic-link.ts` | Removed. OTP / magic-link delivery is Supabase's; optional Resend custom-SMTP config moves to Supabase Auth settings. |
+| `src/app/api/auth/[...nextauth]/route.ts` | Removed. Replaced by the Supabase OAuth callback route handler (`src/app/(auth)/auth/callback/route.ts`). |
+| `proxy.ts` | Rewritten onto `createServerClient` + `getUser()` + refresh-and-set (above). |
+| `src/types/next-auth.d.ts` | Removed; `SessionUser` lives in `src/lib/rbac/types.ts`. |
+
+The cut-over is deliberately **localized to roughly five files** so the blast radius stays small. The shield is `src/lib/rbac.ts`: because `getCurrentUser` / `requireUser` / `hasPermission` / `requirePermission` keep their signatures, the **~48 call sites across the `(parent)`, `(staff)`, and `(admin)` route groups need no changes**. The migration swaps the identity backend underneath a stable interface — the application's authorization vocabulary is untouched. The login UI (`(auth)/login/*`) is re-pointed at `signInWithOtp` / `verifyOtp` and gains a "Login with Google" button (SRS UC01); the `check-email` and `error` pages survive with copy tweaks.
 
 ## Test strategy
 
-| Layer | Coverage in PR #25 | Tracked / deferred |
-|---|---|---|
-| Unit — `sendMagicLink` helper | `tests/auth/magic-link.test.ts` mocks `resend` and asserts: (a) dev fallback console-logs and does NOT call Resend, (b) production calls Resend with bilingual subject + body, (c) Resend errors propagate. | — |
-| Unit — `requireUser` / `requirePermission` redirect/forbidden semantics | Indirectly via the RSC dashboards calling them; deeper unit tests deferred. | follow-up |
-| Integration — magic-link DB round-trip (verification_token → session) | Skipped without `SUPABASE_TEST_URL` (mirrors `tests/db/rls.spec.ts` pattern). | live-DB CI follow-up |
-| E2E — Playwright click-through `/login` → `/admin/dashboard` | Not wired. | follow-up issue |
-| Production build | `next build` exercised locally with `AUTH_SECRET=ci-dummy-secret-32-bytes-of-random-data` and a synthetic `DATABASE_URL`; CI now sets the same env vars on the verify job. | — |
+| Layer | Target coverage |
+|---|---|
+| Unit — `getCurrentUser` / `requirePermission` / `hasPermission` | Mock the Supabase server client to return a fixed user + `app_metadata`; assert permission resolution, `forbidden()` on denial, and `PENDING_VERIFICATION` short-circuit. |
+| Unit — `add_rbac_claims` hook (SQL) | pgTAP / SQL test against a seeded user: assert `role_codes`, `status`, `dept_ids` land in `claims.app_metadata` and that a user with no roles yields `[]` + `PENDING_VERIFICATION`. |
+| Integration — handoff trigger | Insert into `auth.users` (local Supabase), assert a `public.profiles` row appears with the same uuid; assert idempotency on conflict. |
+| Integration — proxy refresh | Drive `proxy.ts` with a near-expiry access token; assert the rotated `sb-<ref>-auth-token` cookie is written to the response (regression guard against the silent-logout bug). |
+| E2E — Playwright | `/login` OTP round-trip via local Supabase Inbucket -> `/admin/dashboard`; Google OAuth happy path stubbed. Tracked as a follow-up issue (E2E not in CI yet). |
+| Production build | `next build` with synthetic `NEXT_PUBLIC_SUPABASE_URL` / anon key / service-role key; CI verify job sets the same env vars. |
 
-The CI workflow at `.github/workflows/ci.yml` adds an `env:` block on the verify job so `next build` and `npx drizzle-kit check` succeed without Vercel-side secrets.
+## What is intentionally out of scope
 
-## What is intentionally out of PR #25
-
-These are tracked as separate GitHub issues so the auth PR stays reviewable:
-
-- Admin user-management screens (invite, list, deactivate, role assign).
-- Parent self-registration form + IC verification submission.
-- Admin verify-pending-parents screen.
-- Account deletion + email change flows (PDPA DSAR support per [ADR-008](../00-meta/decision-log.md#adr-008--pdpa-2010-aligned-design-from-day-1)).
-- Force-logout-on-role-change banner UX.
-- Passkeys / WebAuthn ([ADR-016](../00-meta/decision-log.md#adr-016--drizzle-orm-as-the-schema-source-of-truth-drizzle-kit-for-generation-manual-sql-for-rls) keeps the table out of MVP).
-- Multi-factor and password fallback (not in scope; magic-link only).
+- **Google OAuth UI polish** — the button works (SRS UC01); brand-compliant styling and consent-copy refinement are follow-ups.
+- **Passkeys / WebAuthn** — the `authenticators` table left with the adapter; no passkey login in v1.
+- **Multi-factor authentication** — not in v1; OTP / magic-link + Google only.
+- **Authenticated-key + RLS-primary migration (v2)** — v1 stays on the service-role connection with app-layer enforcement (ADR-019). Flipping the data path onto the authenticated key so RLS enforces is explicitly deferred to v2.
+- **PDPA / consent artefacts** — recorded as a design constraint and dependency (ADR-008), not authored this pass: the FYP runs on synthetic data only, so no PDPA rule is yet engaged. DSAR-supporting flows (account deletion, email change) remain tracked for when real student data is introduced.
 
 ## References
 
-- [`../05-tech-spikes/spike-authjs-v5-app-router.md`](../05-tech-spikes/spike-authjs-v5-app-router.md) — implementation playbook this design pairs with.
-- [`../03-design/folder-structure-spec.md`](folder-structure-spec.md) — locked target tree under `src/`.
-- [`../03-design/database-schema.sql.md`](database-schema.sql.md), [`../03-design/rls-policy-design.md`](rls-policy-design.md) — schema and policy backdrop.
-- [ADR-002](../00-meta/decision-log.md#adr-002--application-layer-is-the-source-of-truth-for-rbac-supabase-rls-mirrors-as-defense-in-depth), [ADR-003](../00-meta/decision-log.md#adr-003--database-sessions-not-jwt), [ADR-009](../00-meta/decision-log.md#adr-009--rag-audience-admin-teacher-parent-student-excluded-in-v1), [ADR-011](../00-meta/decision-log.md#adr-011--admin-only-parentstudent-linking-with-csv-bulk--per-family-edits), [ADR-012](../00-meta/decision-log.md#adr-012--use-proxyts-not-middlewarets-on-the-nodejs-runtime-for-session-refresh-and-auth-gating), [ADR-013](../00-meta/decision-log.md#adr-013--nest-pages-under-a-role-named-segment-inside-each-roles-parenthesised-route-group), [ADR-016](../00-meta/decision-log.md#adr-016--drizzle-orm-as-the-schema-source-of-truth-drizzle-kit-for-generation-manual-sql-for-rls), [ADR-017](../00-meta/decision-log.md#adr-017--pin-next-auth500-beta30-postgres-postgresjs-driver-and-resend-for-magic-link-delivery).
+- Source docs — thesis Chapter 3 (Supabase Auth + RLS) and Chapter 4 ERD ("PROFILES connected to Supabase Auth's auth_users"); SRS UC01 ("Login with Google", "uses Supabase to hash"). See source-docs/thesis.md and source-docs/srs.md.
+- ADR-018 — Replace Auth.js v5 with Supabase Auth (`@supabase/ssr`); supersedes ADR-017, revises ADR-002 / ADR-012 / ADR-016, reopens P0-Q6.
+- ADR-019 — App layer stays the RBAC source of truth; custom access-token hook injects lightweight claims; service-role connection in v1, authenticated-key + RLS-primary deferred to v2.
+- ADR-011 — Admin-only parent/student linking and parent self-registration approval (PENDING_VERIFICATION flow).
+- ADR-012 — Use `proxy.ts`, not `middleware.ts`, on the Node.js runtime for session refresh and auth gating.
+- ADR-008 — PDPA-2010-aligned design (recorded as a deferred dependency under synthetic-data scope).
+- Companion design docs — rls-policy-design.md (RLS correct-but-bypassed in v1), database-schema.sql.md (`public.profiles` and the dropped adapter tables), folder-structure-spec.md (locked target tree under `src/`).
