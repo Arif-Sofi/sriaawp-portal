@@ -93,7 +93,17 @@ Build train (bottom = earliest dependency):
 
 Phase 0 (spikes #11/#12/#14/#13) COMPLETE: PRs #90-#93, all four issues closed. Cross-cutting flag: `GOOGLE_GENERATIVE_AI_API_KEY` is present-but-empty in `.env.local`, so live LLM/embedding runs (#13 tuning, #80/#81) await the human's Gemini key; pipelines built + typecheck-proven ahead of it.
 
-Next planned (dependency order): #79 auth cut-over (LEAVE OPEN) -> #28/#26 DB -> #80/#81 AI -> #82/#83 engagement -> #84/#85 Facebook (mock) -> #58/#30-#34 auth follow-ups. See `docs/agent/next-session-prompt.md`.
+**DAG note (not a pure linear stack from here).** The spike stack ends at `spike/pgvector-gemini` (#93). Two branches fork off it:
+- `feat/supabase-auth-cutover` (#94, issue #79) — the auth cut-over, **a SIBLING left OPEN for human review**, deliberately NOT in the feature train's lineage so its churn cannot force feature-train rebases and the human can review/merge/revert it independently. Owns migration **0006**.
+- The **feature train** (below) forks off `spike/pgvector-gemini` too, parallel to #94. It uses migrations **0007+** (0006 reserved for #79). The feature train consumes only the spikes (preserved `getCurrentUser`/RBAC signatures, the AI/retrieval libs), not #79's auth internals.
+
+Feature train (off `spike/pgvector-gemini`):
+
+| PR | Branch | Base | Issue | Migration | Status |
+|----|--------|------|-------|-----------|--------|
+| TBD | `feat/operational-tables` | `spike/pgvector-gemini` | #28 | 0007 | In progress. chat_session/chat_message(mode,news_id)/retrieval_log(kind)/outbox/idempotency. audit_log already shipped (PR3) — not recreated. |
+
+Next planned (dependency order): #28 -> #26 (manual corpus, 0008) -> #80 (AI modes 1+2) -> #81 (mode 3 + Supabase Storage = resolves #89) -> #82 (engagement tables, 0009) -> #83 (engagement UI + #87 toggle) -> #84/#85 Facebook mock (0010). Auth follow-ups #58/#30-#34 gated on #79 review/merge. See `docs/agent/next-session-prompt.md`.
 
 ## Closed / merged PRs
 
