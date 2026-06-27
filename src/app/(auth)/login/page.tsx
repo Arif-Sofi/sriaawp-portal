@@ -1,6 +1,8 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { auth, signIn } from "@/lib/auth";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/rbac";
 import { dashboardPathForRoles } from "@/lib/navigation";
 
 import { LoginForm } from "./login-form";
@@ -9,9 +11,16 @@ interface LoginPageProps {
   searchParams: Promise<{ callbackUrl?: string; error?: string }>;
 }
 
+async function originFromHeaders(): Promise<string> {
+  const headerList = await headers();
+  const host = headerList.get("x-forwarded-host") ?? headerList.get("host") ?? "localhost:3000";
+  const protocol = headerList.get("x-forwarded-proto") ?? "http";
+  return `${protocol}://${host}`;
+}
+
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const session = await auth();
-  if (session?.user) redirect(dashboardPathForRoles(session.user.roles));
+  const existingUser = await getCurrentUser();
+  if (existingUser) redirect(dashboardPathForRoles(existingUser.roles));
 
   const params = await searchParams;
   const callbackUrl = params.callbackUrl ?? "/portal";
@@ -21,7 +30,30 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     "use server";
     const email = String(formData.get("email") ?? "").trim();
     if (!email) return;
-    await signIn("resend", { email, redirectTo: callbackUrl });
+    const origin = await originFromHeaders();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(callbackUrl)}`,
+      },
+    });
+    if (error) redirect("/login/error");
+    redirect("/login/check-email");
+  }
+
+  async function signInWithGoogle() {
+    "use server";
+    const origin = await originFromHeaders();
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(callbackUrl)}`,
+      },
+    });
+    if (error || !data.url) redirect("/login/error");
+    redirect(data.url);
   }
 
   return (
@@ -37,7 +69,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <h1 className="text-xl font-semibold text-slate-900">Portal SRIAAWP</h1>
           <p className="text-sm text-slate-500">Log Masuk / Sign in</p>
         </header>
-        <LoginForm action={sendMagicLink} errorCode={errorCode} />
+        <LoginForm action={sendMagicLink} googleAction={signInWithGoogle} errorCode={errorCode} />
         <footer className="mt-6 text-center text-xs leading-relaxed text-slate-400">
           Sekolah Rendah Islam Antarabangsa Wilayah Persekutuan
         </footer>
