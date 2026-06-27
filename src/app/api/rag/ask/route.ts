@@ -8,14 +8,19 @@ import {
   type UIMessage,
 } from "ai";
 
-import type { AiMode, AiUiMessage } from "@/lib/ai/envelope";
+import type { AiMode, AiUiMessage, ChunkCitation } from "@/lib/ai/envelope";
 import { generationModel } from "@/lib/ai/model";
-import { citationFor, STUBBED_MANUAL_CHUNK } from "@/lib/ai/manual-stub";
+import { embedQuery } from "@/lib/ai/embed";
+import { loadManualCorpus } from "@/lib/ai/manual-retrieve";
+import { rankByCosine, type RankedManualChunk } from "@/lib/ai/retrieve";
+import { resolveManualImages } from "@/lib/storage/manual-images";
 import { createGetNewsTool } from "@/lib/ai/tools/get-news";
 import {
   recordAssistantTurn,
   recordGetNewsRetrieval,
+  recordManualRagTurn,
   recordUserTurn,
+  recordVectorRetrieval,
   resolveSession,
 } from "@/lib/ai/persist";
 import { extractGetNewsTrace, groundedNewsId } from "@/lib/ai/trace";
@@ -47,7 +52,12 @@ function inArticleSystem(articleText: string): string {
 const GET_NEWS_SYSTEM =
   "Use the get_news tool to fetch news the user may see, then answer grounded only on returned rows.";
 const MANUAL_RAG_SYSTEM =
-  "Answer from the retrieved manual section provided as context. Cite the section.";
+  "Answer from the retrieved manual sections provided as context, and only from them. Cite the section.";
+
+// Grounded refusal shown when the top chunk falls below tau_refuse: the question
+// is off-manual, so the assistant declines rather than letting the LLM guess.
+const MANUAL_RAG_REFUSAL =
+  "I can only answer questions about using the portal, and I couldn't find that in the manual.";
 
 const SESSION_HEADER = "x-session-id";
 
@@ -64,25 +74,103 @@ function lastUserText(messages: UIMessage[]): string {
     .join("");
 }
 
-function manualRagResponse(body: AskRequestBody): Response {
-  const chunk = STUBBED_MANUAL_CHUNK;
+function citationsFor(chunks: RankedManualChunk[]): ChunkCitation[] {
+  return chunks.map((chunk) => ({
+    chunkId: chunk.chunkId,
+    manualSection: chunk.sectionHeading,
+    score: chunk.score,
+  }));
+}
+
+function groundingContext(chunks: RankedManualChunk[]): string {
+  const sections = chunks
+    .map((chunk) => `## ${chunk.sectionHeading}\n${chunk.content}`)
+    .join("\n\n");
+  return `Manual sections:\n${sections}`;
+}
+
+async function manualRagResponse(
+  body: AskRequestBody,
+  user: AuthedUser,
+  sessionId: string,
+): Promise<Response> {
+  const startedMs = Date.now();
+  const queryText = lastUserText(body.messages);
+  const queryEmbedding = await embedQuery(queryText);
+  const ranked = rankByCosine(queryEmbedding, await loadManualCorpus());
+  const retrievalLatencyMs = Date.now() - startedMs;
+
+  if (!ranked.grounded) {
+    await recordVectorRetrieval({
+      userId: user.id,
+      queryText,
+      chunkIds: [],
+      scores: [],
+      latencyMs: retrievalLatencyMs,
+      refusedReason: ranked.reason,
+    });
+    await recordManualRagTurn({
+      sessionId,
+      content: MANUAL_RAG_REFUSAL,
+      citations: [],
+      latencyMs: retrievalLatencyMs,
+      refusedReason: ranked.reason,
+    });
+    return manualRagRefusalStream(sessionId);
+  }
+
+  const chunks = ranked.chunks;
+  await recordVectorRetrieval({
+    userId: user.id,
+    queryText,
+    chunkIds: chunks.map((chunk) => chunk.chunkId),
+    scores: chunks.map((chunk) => chunk.score),
+    latencyMs: retrievalLatencyMs,
+    refusedReason: null,
+  });
+
+  const citations = citationsFor(chunks);
+  const imageLinks = await resolveManualImages(chunks.flatMap((chunk) => chunk.imageLinks));
+
   const stream = createUIMessageStream<AiUiMessage>({
     execute: async ({ writer }) => {
-      writer.write({ type: "data-image-links", data: chunk.imageLinks });
-      writer.write({ type: "data-citations", data: [citationFor(chunk)] });
+      writer.write({ type: "data-image-links", data: imageLinks });
+      writer.write({ type: "data-citations", data: citations });
 
       const result = streamText({
         model: generationModel,
         system: MANUAL_RAG_SYSTEM,
         messages: [
-          { role: "system", content: `Manual section:\n${chunk.text}` },
+          { role: "system", content: groundingContext(chunks) },
           ...(await convertToModelMessages(body.messages)),
         ],
+        onFinish: async ({ text }) => {
+          await recordManualRagTurn({
+            sessionId,
+            content: text,
+            citations,
+            latencyMs: Date.now() - startedMs,
+            refusedReason: null,
+          });
+        },
       });
       writer.merge(result.toUIMessageStream<AiUiMessage>());
     },
   });
-  return createUIMessageStreamResponse({ stream });
+  return createUIMessageStreamResponse({ stream, headers: sessionHeader(sessionId) });
+}
+
+function manualRagRefusalStream(sessionId: string): Response {
+  const stream = createUIMessageStream<AiUiMessage>({
+    execute: ({ writer }) => {
+      writer.write({ type: "data-image-links", data: [] });
+      writer.write({ type: "data-citations", data: [] });
+      writer.write({ type: "text-start", id: "refusal" });
+      writer.write({ type: "text-delta", id: "refusal", delta: MANUAL_RAG_REFUSAL });
+      writer.write({ type: "text-end", id: "refusal" });
+    },
+  });
+  return createUIMessageStreamResponse({ stream, headers: sessionHeader(sessionId) });
 }
 
 async function inArticleResponse(
@@ -153,11 +241,10 @@ export async function POST(request: Request): Promise<Response> {
 
   const body = (await request.json()) as AskRequestBody;
 
-  if (body.mode === "manual_rag") return manualRagResponse(body);
-
   const sessionId = await resolveSession(user.id, body.sessionId);
   await recordUserTurn(sessionId, lastUserText(body.messages));
 
+  if (body.mode === "manual_rag") return manualRagResponse(body, user, sessionId);
   if (body.mode === "in_article") return inArticleResponse(body, user, sessionId);
   return getNewsResponse(body, user, sessionId);
 }

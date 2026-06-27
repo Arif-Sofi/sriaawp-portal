@@ -1,0 +1,57 @@
+{
+  "description": "Mode-3 manual-RAG golden set (issue #5 re-scope, ADR-020). QA pairs scoped to the synthetic stand-in manual (src/lib/ai/manual/stand-in.ts). Swapping the PM's real manual in is a content re-author of this fixture plus a re-ingest. expected_section_id is the stand-in ManualSection.sectionId the answer must ground on; off_manual cases must trip tau_refuse and refuse.",
+  "model": "gemini-2.5-flash",
+  "embedding_model": "gemini-embedding-001",
+  "thresholds": { "faithfulness": 0.85, "answer_relevancy": 0.8, "context_precision": 0.7 },
+  "cases": [
+    {
+      "id": "reads-news",
+      "question": "How do I read the latest school news as a parent?",
+      "expected_section_id": "parent-reads-news",
+      "ground_truth": "Sign in, open the parent dashboard, and use the News tab, which lists announcements newest first. Tap an article to read it in full.",
+      "off_manual": false
+    },
+    {
+      "id": "asks-question",
+      "question": "Where do I post a question about an announcement?",
+      "expected_section_id": "parent-asks-question",
+      "ground_truth": "Open the announcement and use the comment box below it; the owning teacher is notified and the reply appears under your question.",
+      "off_manual": false
+    },
+    {
+      "id": "teacher-replies",
+      "question": "As a teacher, how do I reply to a parent's comment?",
+      "expected_section_id": "teacher-answers-comment",
+      "ground_truth": "Open the announcement, find the question in the comment thread, and post a reply; the parent is notified. Inappropriate comments can be hidden via the moderation control.",
+      "off_manual": false
+    },
+    {
+      "id": "links-family",
+      "question": "How does an admin connect a parent account to a student?",
+      "expected_section_id": "admin-links-family",
+      "ground_truth": "Use User Management, choose Link family, and enter the parent and student, or upload a CSV to link many families at once. Only an admin can change a family link.",
+      "off_manual": false
+    },
+    {
+      "id": "uses-assistant",
+      "question": "What can the portal assistant help me with?",
+      "expected_section_id": "ask-the-assistant",
+      "ground_truth": "Open the assistant from the dashboard to have it explain the article you are reading, find recent news, or explain how to use part of the portal. It only answers from information you may see and from this manual.",
+      "off_manual": false
+    },
+    {
+      "id": "off-manual-weather",
+      "question": "What is the weather forecast for tomorrow?",
+      "expected_section_id": null,
+      "ground_truth": "I can only answer questions about using the portal, and I couldn't find that in the manual.",
+      "off_manual": true
+    },
+    {
+      "id": "off-manual-exam-result",
+      "question": "What grade did my child get on the maths exam?",
+      "expected_section_id": null,
+      "ground_truth": "I can only answer questions about using the portal, and I couldn't find that in the manual.",
+      "off_manual": true
+    }
+  ]
+}

@@ -4,7 +4,7 @@ import { chatMessage, chatSession, retrievalLog } from "@/db/schema";
 import { db } from "@/lib/db";
 import type { GetNewsFilters, GetNewsRow } from "@/lib/ai/tools/get-news";
 import { GENERATION_MODEL_ID } from "@/lib/ai/model";
-import type { AiMode } from "@/lib/ai/envelope";
+import type { AiMode, ChunkCitation } from "@/lib/ai/envelope";
 
 export type GetNewsTrace = {
   filters: GetNewsFilters;
@@ -72,5 +72,57 @@ export async function recordGetNewsRetrieval(entry: RetrievalEntry): Promise<voi
     resultIds: entry.trace.results.map((row) => row.id),
     model: GENERATION_MODEL_ID,
     latencyMs: entry.latencyMs,
+  });
+}
+
+type ManualRagTurn = {
+  sessionId: string;
+  content: string;
+  citations: ChunkCitation[];
+  latencyMs: number;
+  refusedReason: string | null;
+};
+
+/**
+ * Mode-3 assistant turn. news_id is always NULL (the manual is not a news item);
+ * citations carry the ranked chunk refs; refused_reason is set on a tau_refuse
+ * refusal so a grounded refusal is distinguishable from a grounded answer.
+ */
+export async function recordManualRagTurn(turn: ManualRagTurn): Promise<void> {
+  await db.insert(chatMessage).values({
+    sessionId: turn.sessionId,
+    role: "assistant",
+    content: turn.content,
+    mode: "manual_rag",
+    newsId: null,
+    citations: turn.citations,
+    latencyMs: turn.latencyMs,
+    refusedReason: turn.refusedReason,
+  });
+}
+
+type VectorRetrievalEntry = {
+  userId: string;
+  queryText: string;
+  chunkIds: string[];
+  scores: number[];
+  latencyMs: number;
+  refusedReason: string | null;
+};
+
+/**
+ * Mode-3 vector retrieval trace: the flat-scan ranking outcome. On a refusal the
+ * ranked chunk_ids/scores are empty and refused_reason carries the gate reason.
+ */
+export async function recordVectorRetrieval(entry: VectorRetrievalEntry): Promise<void> {
+  await db.insert(retrievalLog).values({
+    userId: entry.userId,
+    kind: "vector",
+    queryText: entry.queryText,
+    chunkIds: entry.chunkIds,
+    scores: entry.scores,
+    model: GENERATION_MODEL_ID,
+    latencyMs: entry.latencyMs,
+    refusedReason: entry.refusedReason,
   });
 }
