@@ -10,8 +10,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const nav = (
     <>
-      <AuthHeader locale={locale} userName={name} homeHref="/admin/dashboard" />
-      {user ? <RoleNav area="admin" user={user} locale={locale} /> : null}
+      <AuthHeader
+        locale={locale}
+        userName={name}
+        homeHref="/admin/dashboard"
+        userId={session?.user?.id}
+      />
+      {session?.user ? <RoleNav area="admin" user={session.user} locale={locale} /> : null}
     </>
   );
 

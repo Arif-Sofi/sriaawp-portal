@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { createServerClient } from "@supabase/ssr";
 
-const PROTECTED_PREFIXES = ["/parent", "/staff", "/admin", "/assistant"];
+const PROTECTED_PREFIXES = ["/parent", "/staff", "/admin", "/assistant", "/notifications"];
 
 function readEnv(name: string): string {
   const value = process.env[name];
