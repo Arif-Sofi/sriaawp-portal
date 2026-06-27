@@ -2,12 +2,14 @@ import { notFound } from "next/navigation";
 
 import { ArticleAssistant } from "@/components/ai/article-assistant";
 import { getVisibleNewsBySlug } from "@/lib/content/queries";
+
 import {
   getReactionState,
   listCommentsForNews,
   studentCommentsAllowed,
 } from "@/lib/engagement/queries";
-import { auth } from "@/lib/auth";
+
+import { getCurrentUser } from "@/lib/rbac";
 import { getLocale } from "@/lib/i18n/server";
 import { hasPermission, type AuthedUser } from "@/lib/rbac";
 
@@ -22,8 +24,7 @@ type Props = {
 export default async function NewsArticlePage({ params }: Props) {
   const { slug } = await params;
   const locale = await getLocale();
-  const session = await auth();
-  const user = session?.user ?? null;
+  const user = await getCurrentUser();
 
   const article = await getVisibleNewsBySlug(slug, user);
   if (!article) notFound();

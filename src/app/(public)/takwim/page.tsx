@@ -2,7 +2,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { PortalSection } from "@/components/portal/portal-section";
-import { auth } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/rbac";
 import { translate } from "@/lib/i18n";
 import { ui } from "@/lib/i18n/dictionary";
 import { getLocale } from "@/lib/i18n/server";
@@ -40,19 +40,19 @@ function formatDateTime(date: Date, locale: string): string {
 export default async function TakwimPage() {
   const locale = await getLocale();
   const t = (key: string) => translate(ui, key, locale);
-  const session = await auth();
+  const user = await getCurrentUser();
 
   const now = new Date();
   const monthStart = firstOfMonth(now);
   const { fromISO, toISO } = monthRangeISO(now);
 
-  const occurrences = session?.user
+  const occurrences = user
     ? await listVisibleOccurrences({
         fromISO,
         toISO,
         user: {
-          roles: session.user.roles ?? [],
-          deptIds: session.user.deptIds ?? [],
+          roles: user.roles ?? [],
+          deptIds: user.deptIds ?? [],
         },
       })
     : await listPublicOccurrences({ fromISO, toISO });

@@ -89,6 +89,9 @@ Build train (bottom = earliest dependency):
 | #91 | `spike/supabase-rls` | `spike/supabase-auth-ssr` | #12 | Open. Sample RLS policy + reusable cross-tenant block test helper. |
 | #92 | `spike/ai-sdk-gemini` | `spike/supabase-rls` | #14 | Open. Vercel AI SDK + Gemini streaming + tool-calling + image-link envelope. |
 | #93 | `spike/pgvector-gemini` | `spike/ai-sdk-gemini` | #13 | Open. pgvector flat-scan over the manual + embedding pipeline + tau_refuse. |
+| #94 | `feat/supabase-auth-cutover` | `spike/pgvector-gemini` | #79 | In progress. Auth.js -> Supabase Auth cut-over. **LEFT OPEN for human review** (only ticket rewriting shipped PR #25 code). |
+
+Phase 0 (spikes #11/#12/#14/#13) COMPLETE: PRs #90-#93, all four issues closed. Cross-cutting flag: `GOOGLE_GENERATIVE_AI_API_KEY` is present-but-empty in `.env.local`, so live LLM/embedding runs (#13 tuning, #80/#81) await the human's Gemini key; pipelines built + typecheck-proven ahead of it.
 
 **DAG note (not a pure linear stack from here).** The spike stack ends at `spike/pgvector-gemini` (#93). Two branches fork off it:
 - `feat/supabase-auth-cutover` (#94, issue #79) — the auth cut-over, **a SIBLING left OPEN for human review**, deliberately NOT in the feature train's lineage so its churn cannot force feature-train rebases and the human can review/merge/revert it independently. Owns migration **0006**.
