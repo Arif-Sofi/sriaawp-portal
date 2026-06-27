@@ -1,16 +1,23 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { listAllNews } from "@/lib/content/queries";
+import { outboundSyncStatusByNewsId } from "@/lib/facebook/queries";
 import { translate } from "@/lib/i18n";
 import { ui } from "@/lib/i18n/dictionary";
 import { getLocale } from "@/lib/i18n/server";
-import { requirePermission } from "@/lib/rbac";
+import { hasPermission, requirePermission } from "@/lib/rbac";
 import { AdminNewsForm } from "./_components/admin-news-form";
+import { FacebookSyncControl } from "./_components/facebook-sync-control";
 import { NewsRowActions } from "./_components/news-row-actions";
 
 export default async function AdminNewsPage() {
-  await requirePermission("news:author");
-  const [items, locale] = await Promise.all([listAllNews(), getLocale()]);
+  const user = await requirePermission("news:author");
+  const canSyncFacebook = hasPermission(user, "news:sync_facebook");
+  const [items, locale, syncStatus] = await Promise.all([
+    listAllNews(),
+    getLocale(),
+    canSyncFacebook ? outboundSyncStatusByNewsId() : Promise.resolve(new Map()),
+  ]);
 
   const t = (key: string) => translate(ui, key, locale);
 
@@ -53,6 +60,15 @@ export default async function AdminNewsPage() {
                     <Badge variant={item.publishedAt ? "success" : "warning"}>
                       {item.publishedAt ? t("admin.content.published") : t("admin.content.draft")}
                     </Badge>
+                    {canSyncFacebook &&
+                    item.visibility === "public" &&
+                    item.publishedAt !== null ? (
+                      <FacebookSyncControl
+                        newsId={item.id}
+                        status={syncStatus.get(item.id) ?? null}
+                        locale={locale}
+                      />
+                    ) : null}
                     <NewsRowActions row={item} locale={locale} />
                   </div>
                 </li>

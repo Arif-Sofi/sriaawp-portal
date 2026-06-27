@@ -9,3 +9,4 @@ export * from "./documents";
 export * from "./operational";
 export * from "./manual";
 export * from "./engagement";
+export * from "./facebook";
