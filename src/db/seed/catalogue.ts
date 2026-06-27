@@ -28,6 +28,12 @@ export const PERMISSIONS = [
   { code: "cocurricular:submit_achievement", label: "Submit own achievement application" },
   { code: "staff:dashboard:read", label: "Access the staff dashboard landing" },
   { code: "admin:dashboard:read", label: "Access the admin dashboard landing" },
+  { code: "news:react", label: "Add or remove a reaction on a visible news item" },
+  { code: "news:comment", label: "Post a comment on a visible news item" },
+  { code: "news:comment:edit_own", label: "Edit one's own comment" },
+  { code: "news:comment:delete_own", label: "Soft-delete one's own comment" },
+  { code: "news:comment:moderate", label: "Hide or delete any comment within scope" },
+  { code: "news:comment:report", label: "Report a comment for moderator review" },
 ] as const;
 
 export const ROLES = [
@@ -56,8 +62,24 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "cocurricular:approve_achievement",
     "cocurricular:manage_group",
     "staff:dashboard:read",
+    "news:react",
+    "news:comment",
+    "news:comment:edit_own",
+    "news:comment:delete_own",
+    "news:comment:moderate",
+    "news:comment:report",
   ],
-  parent: ["user:read:self", "news:read", "memo:read", "rag:query"],
+  parent: [
+    "user:read:self",
+    "news:read",
+    "memo:read",
+    "rag:query",
+    "news:react",
+    "news:comment",
+    "news:comment:edit_own",
+    "news:comment:delete_own",
+    "news:comment:report",
+  ],
   student: ["user:read:self", "news:read", "memo:read", "cocurricular:submit_achievement"],
 };
 
